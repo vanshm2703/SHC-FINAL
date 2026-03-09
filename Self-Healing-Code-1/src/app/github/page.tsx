@@ -235,8 +235,8 @@ const GitHubPage = () => {
 
   return (
     <main className='flex min-h-screen h-fit flex-col items-center justify-center relative'>
-      <header id="home" className="flex flex-col-reverse md:flex-row w-full h-screen max-w-7xl items-center justify-center p-8 relative overflow-x-hidden">
-        <div className='w-full h-2/4 md:h-full md:w-2/5 flex flex-col justify-center items-center md:items-start gap-8'>
+      <header id="home" className="flex flex-col-reverse md:flex-row w-full min-h-screen max-w-7xl items-center justify-center p-8 relative overflow-x-hidden">
+        <div className='w-full h-fit md:h-full md:w-2/5 flex flex-col justify-center items-center md:items-start gap-8'>
           <div className='flex flex-col gap-2'>
             <h1 className='text-4xl font-black md:text-8xl text-black'>GitHub Integration</h1>
             <h2 className='text-md md:text-2xl text-black'>Connect Your Repository</h2>
@@ -346,7 +346,7 @@ const GitHubPage = () => {
 
             {/* Analysis Results */}
             {analysisResults && (
-              <div className="mt-6 p-4 bg-white/20 border border-black rounded-lg max-h-96 overflow-y-auto">
+              <div className="mt-6 p-4 bg-white/20 border border-black rounded-lg">
                 <h3 className="text-lg font-semibold text-black mb-3">
                   Analysis Results - {analysisResults.repoName}
                 </h3>
@@ -384,7 +384,7 @@ const GitHubPage = () => {
                         </p>
                       )}
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-80 overflow-y-auto">
                     {analysisResults.results.map((file: AnalysisResult, index: number) => (
                       <div key={index} className="bg-white/30 p-3 rounded border">
                         <h4 className="font-semibold text-black mb-2">📁 {file.filename}</h4>
@@ -412,7 +412,7 @@ const GitHubPage = () => {
           </div>
         </div>
 
-        <div className='w-full h-2/4 md:h-full md:w-3/5 flex items-center justify-center relative -z-10'>
+        <div className='w-full h-fit md:h-full md:w-3/5 flex items-center justify-center relative -z-10'>
           <Spline 
             className="w-full flex scale-[.25] sm:scale-[.35] lg:scale-[.5] items-center justify-center md:justify-start" 
             scene='https://prod.spline.design/pvM5sSiYV2ivWraz/scene.splinecode'
