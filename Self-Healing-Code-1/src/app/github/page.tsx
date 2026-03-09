@@ -9,9 +9,178 @@ import Link from "next/link"
 import dynamic from "next/dynamic";
 import { useState } from "react";
 
+// Type definitions
+interface GitHubError {
+  type: 'error' | 'warning';
+  message: string;
+  line: number;
+  suggestion?: string;
+}
+
+interface AnalysisResult {
+  filename: string;
+  errors: GitHubError[];
+}
+
+interface AnalysisResults {
+  totalFiles: number;
+  analyzedFiles: number;
+  filesWithErrors: number;
+  results: AnalysisResult[];
+  repoName: string;
+}
+
+interface GitHubFile {
+  type: string;
+  name: string;
+  download_url: string;
+}
+
 const GitHubPage = () => {
-  const [repoUrl, setRepoUrl] = useState('');
-  const [branchName, setBranchName] = useState('');
+  const [repoUrl, setRepoUrl] = useState<string>('');
+  const [branchName, setBranchName] = useState<string>('');
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
+  const [error, setError] = useState<string>('');
+
+  // Parse GitHub URL to extract owner and repo
+  const parseGitHubUrl = (url: string): { owner: string; repo: string } | null => {
+    const regex = /github\.com\/([^\/]+)\/([^\/]+)/;
+    const match = url.match(regex);
+    if (match) {
+      return {
+        owner: match[1],
+        repo: match[2].replace('.git', '')
+      };
+    }
+    return null;
+  };
+
+  // Fetch repository contents from GitHub API
+  const fetchRepoContents = async (owner: string, repo: string, branch = 'main'): Promise<GitHubFile[]> => {
+    try {
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents?ref=${branch}`);
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+      return await response.json();
+    } catch (err: any) {
+      throw new Error(`Failed to fetch repository: ${err.message}`);
+    }
+  };
+
+  // Fetch individual file content
+  const fetchFileContent = async (downloadUrl: string): Promise<string | null> => {
+    try {
+      const response = await fetch(downloadUrl);
+      if (!response.ok) return null;
+      return await response.text();
+    } catch {
+      return null;
+    }
+  };
+
+  // Analyze code using Groq API
+  const analyzeCodeWithGroq = async (filename: string, codeContent: string): Promise<{ errors: GitHubError[] }> => {
+    const prompt = `
+      Analyze this ${filename} file for errors, bugs, and code quality issues.
+      Focus on: syntax errors, logic errors, security issues, performance problems, and best practices.
+      
+      Code:
+      ${codeContent}
+      
+      Return ONLY a valid JSON response with this exact format:
+      {
+        "errors": [
+          {
+            "type": "error",
+            "message": "Description of the issue",
+            "line": 10,
+            "suggestion": "How to fix it"
+          }
+        ]
+      }
+    `;
+
+    try {
+      const response = await fetch('/api/analyze-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze code');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      console.error('Groq API error:', err);
+      return { errors: [] };
+    }
+  };
+
+  // Main analysis function
+  const analyzeRepository = async () => {
+    if (!repoUrl.trim()) {
+      setError('Please enter a repository URL');
+      return;
+    }
+
+    const parsedUrl = parseGitHubUrl(repoUrl);
+    if (!parsedUrl) {
+      setError('Invalid GitHub URL format');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError('');
+    setAnalysisResults(null);
+
+    try {
+      const branch = branchName.trim() || 'main';
+      const contents = await fetchRepoContents(parsedUrl.owner, parsedUrl.repo, branch);
+      
+      // Filter code files
+      const codeFiles = contents.filter((item: GitHubFile) => 
+        item.type === 'file' && 
+        /\.(js|jsx|ts|tsx|py|java|cpp|c|cs|php)$/.test(item.name)
+      );
+
+      const analysisResults = [];
+      // Analyze first 5 files to avoid rate limiting
+      const filesToAnalyze = codeFiles.slice(0, 5);
+      
+      for (const file of filesToAnalyze) {
+        const content = await fetchFileContent(file.download_url);
+        if (content && content.length < 5000) { // Limit file size
+          const analysis = await analyzeCodeWithGroq(file.name, content);
+          if (analysis.errors && analysis.errors.length > 0) {
+            analysisResults.push({
+              filename: file.name,
+              errors: analysis.errors
+            });
+          }
+        }
+      }
+
+      setAnalysisResults({
+        totalFiles: codeFiles.length,
+        analyzedFiles: filesToAnalyze.length,
+        filesWithErrors: analysisResults.length,
+        results: analysisResults,
+        repoName: `${parsedUrl.owner}/${parsedUrl.repo}`
+      });
+
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   return (
     <main className='flex min-h-screen h-fit flex-col items-center justify-center relative'>
@@ -42,7 +211,7 @@ const GitHubPage = () => {
             
             <div className="space-y-2">
               <Label htmlFor="branch-name" className="text-sm font-medium text-black">
-                Branch Name (Optional)
+                Branch Name 
               </Label>
               <Input 
                 id="branch-name" 
@@ -54,20 +223,74 @@ const GitHubPage = () => {
             </div>
 
             <div className="flex gap-4 pt-4">
-              <Link href="/dashboard" className="flex-1">
+              <Button 
+                onClick={analyzeRepository}
+                disabled={!repoUrl.trim() || isAnalyzing}
+                className="flex-1 bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
+              >
+                {isAnalyzing ? 'Analyzing...' : 'Analyze Code'}
+              </Button>
+              <Link href="/dashboard">
                 <Button 
-                  className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
                   disabled={!repoUrl.trim()}
                 >
-                  Analyze Repository
+                  Dashboard
                 </Button>
               </Link>
               <Link href="/">
                 <Button variant="outline" className="border-black text-black hover:bg-white/20 hover:border-black">
-                  Back to Home
+                  Back
                 </Button>
               </Link>
             </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                {error}
+              </div>
+            )}
+
+            {/* Analysis Results */}
+            {analysisResults && (
+              <div className="mt-6 p-4 bg-white/20 border border-black rounded-lg max-h-96 overflow-y-auto">
+                <h3 className="text-lg font-semibold text-black mb-3">
+                  Analysis Results - {analysisResults.repoName}
+                </h3>
+                <div className="text-sm text-black mb-4">
+                  <p>📊 Total Files: {analysisResults.totalFiles}</p>
+                  <p>🔍 Analyzed Files: {analysisResults.analyzedFiles}</p>
+                  <p>⚠️ Files with Issues: {analysisResults.filesWithErrors}</p>
+                </div>
+                
+                {analysisResults.results.length === 0 ? (
+                  <p className="text-green-700 font-semibold">✅ No major issues found!</p>
+                ) : (
+                  <div className="space-y-3">
+                    {analysisResults.results.map((file: AnalysisResult, index: number) => (
+                      <div key={index} className="bg-white/30 p-3 rounded border">
+                        <h4 className="font-semibold text-black mb-2">📁 {file.filename}</h4>
+                        <ul className="space-y-2">
+                          {file.errors.map((error: GitHubError, errorIndex: number) => (
+                            <li key={errorIndex} className="text-sm border-l-4 border-red-400 pl-3">
+                              <div className="text-black font-semibold">
+                                {error.type === 'error' ? '🔴' : '🟡'} Line {error.line}: {error.message}
+                              </div>
+                              {error.suggestion && (
+                                <div className="text-gray-700 mt-1">
+                                  💡 {error.suggestion}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
