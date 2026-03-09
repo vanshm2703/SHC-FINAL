@@ -39,9 +39,12 @@ interface GitHubFile {
 const GitHubPage = () => {
   const [repoUrl, setRepoUrl] = useState<string>('');
   const [branchName, setBranchName] = useState<string>('');
+  const [githubToken, setGithubToken] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [isCreatingPR, setIsCreatingPR] = useState<boolean>(false);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const [error, setError] = useState<string>('');
+  const [prResult, setPrResult] = useState<{ prUrl: string; message: string } | null>(null);
 
   // Parse GitHub URL to extract owner and repo
   const parseGitHubUrl = (url: string): { owner: string; repo: string } | null => {
@@ -182,6 +185,54 @@ const GitHubPage = () => {
     }
   };
 
+  // Create Pull Request with fixes
+  const createAutoFixPR = async () => {
+    if (!analysisResults || !githubToken.trim()) {
+      setError('GitHub token is required to create pull requests');
+      return;
+    }
+
+    if (analysisResults.results.length === 0) {
+      setError('No issues found to fix');
+      return;
+    }
+
+    setIsCreatingPR(true);
+    setError('');
+    setPrResult(null);
+
+    try {
+      const response = await fetch('/api/create-pr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          repoUrl,
+          branchName: branchName.trim() || 'main',
+          githubToken,
+          analysisResults: analysisResults.results
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create PR');
+      }
+
+      setPrResult({
+        prUrl: data.prUrl,
+        message: data.message
+      });
+
+    } catch (err: any) {
+      setError(`Failed to create PR: ${err.message}`);
+    } finally {
+      setIsCreatingPR(false);
+    }
+  };
+
   return (
     <main className='flex min-h-screen h-fit flex-col items-center justify-center relative'>
       <header id="home" className="flex flex-col-reverse md:flex-row w-full h-screen max-w-7xl items-center justify-center p-8 relative overflow-x-hidden">
@@ -220,8 +271,30 @@ const GitHubPage = () => {
                 onChange={(e) => setBranchName(e.target.value)}
                 className="bg-white/10 border-black text-black placeholder:text-black focus:border-black"
               />
+            </div>            
+            <div className="space-y-2">
+              <Label htmlFor="github-token" className="text-sm font-medium text-black">
+                GitHub Token (for PR creation)
+              </Label>
+              <Input 
+                id="github-token" 
+                type="password"
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                value={githubToken}
+                onChange={(e) => setGithubToken(e.target.value)}
+                className="bg-white/10 border-black text-black placeholder:text-black focus:border-black"
+              />
+              <p className="text-xs text-gray-600">
+                <a 
+                  href="https://github.com/settings/tokens" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="underline hover:text-blue-600"
+                >
+                  Generate token here
+                </a> with 'repo' permissions for PR creation
+              </p>
             </div>
-
             <div className="flex gap-4 pt-4">
               <Button 
                 onClick={analyzeRepository}
@@ -245,6 +318,25 @@ const GitHubPage = () => {
               </Link>
             </div>
 
+            {/* Success Display */}
+            {prResult && (
+              <div className="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">✅</span>
+                  <span className="font-semibold">PR Created Successfully!</span>
+                </div>
+                <p className="mb-3">{prResult.message}</p>
+                <a 
+                  href={prResult.prUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                >
+                  <span>🔗</span> View Pull Request
+                </a>
+              </div>
+            )}
+
             {/* Error Display */}
             {error && (
               <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
@@ -267,7 +359,32 @@ const GitHubPage = () => {
                 {analysisResults.results.length === 0 ? (
                   <p className="text-green-700 font-semibold">✅ No major issues found!</p>
                 ) : (
-                  <div className="space-y-3">
+                  <>
+                    <div className="mb-4">
+                      <Button 
+                        onClick={createAutoFixPR}
+                        disabled={!githubToken.trim() || isCreatingPR || analysisResults.results.length === 0}
+                        className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isCreatingPR ? (
+                          <>
+                            <span className="animate-spin mr-2">🤖</span>
+                            Creating Auto-Fix PR...
+                          </>
+                        ) : (
+                          <>
+                            <span className="mr-2">🚀</span>
+                            Create Auto-Fix PR ({analysisResults.results.reduce((sum, file) => sum + file.errors.length, 0)} issues)
+                          </>
+                        )}
+                      </Button>
+                      {!githubToken.trim() && (
+                        <p className="text-xs text-gray-600 mt-2 text-center">
+                          Enter GitHub token above to enable PR creation
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-3">
                     {analysisResults.results.map((file: AnalysisResult, index: number) => (
                       <div key={index} className="bg-white/30 p-3 rounded border">
                         <h4 className="font-semibold text-black mb-2">📁 {file.filename}</h4>
@@ -287,7 +404,8 @@ const GitHubPage = () => {
                         </ul>
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  </>
                 )}
               </div>
             )}
