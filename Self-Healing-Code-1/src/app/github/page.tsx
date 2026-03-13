@@ -11,6 +11,11 @@ import { useState } from "react";
 
 // Dynamically import 3D view to avoid SSR issues
 const Codebase3DView = dynamic(() => import('@/components/Codebase3DView'), { ssr: false });
+// Dynamically import Knowledge Graph to avoid SSR issues
+const KnowledgeGraph = dynamic(() => import('@/components/KnowledgeGraph'), {
+  ssr: false,
+  loading: () => null,
+});
 
 // Type definitions
 interface GitHubError {
@@ -48,6 +53,7 @@ const GitHubPage = () => {
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const [error, setError] = useState<string>('');
   const [show3DView, setShow3DView] = useState<boolean>(false);
+  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState<boolean>(false);
   const [prResult, setPrResult] = useState<{ prUrl: string; message: string } | null>(null);
 
   // Parse GitHub URL to extract owner and repo
@@ -239,6 +245,14 @@ const GitHubPage = () => {
 
   return (
     <>
+      {/* Knowledge Graph View */}
+      {showKnowledgeGraph && repoUrl && (
+        <KnowledgeGraph
+          repoUrl={repoUrl}
+          onClose={() => setShowKnowledgeGraph(false)}
+        />
+      )}
+
       {/* 3D Codebase View Modal */}
       {show3DView && analysisResults && (
         <Codebase3DView 
@@ -312,15 +326,22 @@ const GitHubPage = () => {
               </p>
             </div>
             <div className="flex gap-4 pt-4">
-              <Button 
+              <Button
                 onClick={analyzeRepository}
                 disabled={!repoUrl.trim() || isAnalyzing}
                 className="flex-1 bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
               >
                 {isAnalyzing ? 'Analyzing...' : 'Analyze Code'}
               </Button>
+              <Button
+                onClick={() => setShowKnowledgeGraph(true)}
+                disabled={!repoUrl.trim()}
+                className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
+              >
+                Knowledge Graph
+              </Button>
               <Link href="/dashboard">
-                <Button 
+                <Button
                   className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
                   disabled={!repoUrl.trim()}
                 >
