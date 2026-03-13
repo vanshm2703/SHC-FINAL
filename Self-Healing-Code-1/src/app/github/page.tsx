@@ -9,6 +9,9 @@ import Link from "next/link"
 import dynamic from "next/dynamic";
 import { useState } from "react";
 
+// Dynamically import 3D view to avoid SSR issues
+const Codebase3DView = dynamic(() => import('@/components/Codebase3DView'), { ssr: false });
+
 // Type definitions
 interface GitHubError {
   type: 'error' | 'warning';
@@ -44,6 +47,7 @@ const GitHubPage = () => {
   const [isCreatingPR, setIsCreatingPR] = useState<boolean>(false);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const [error, setError] = useState<string>('');
+  const [show3DView, setShow3DView] = useState<boolean>(false);
   const [prResult, setPrResult] = useState<{ prUrl: string; message: string } | null>(null);
 
   // Parse GitHub URL to extract owner and repo
@@ -234,6 +238,18 @@ const GitHubPage = () => {
   };
 
   return (
+    <>
+      {/* 3D Codebase View Modal */}
+      {show3DView && analysisResults && (
+        <Codebase3DView 
+          analysisResults={analysisResults} 
+          onClose={() => setShow3DView(false)}
+          repoUrl={repoUrl}
+          branchName={branchName}
+          githubToken={githubToken}
+        />
+      )}
+      
     <main className='flex min-h-screen h-fit flex-col items-center justify-center relative'>
       <header id="home" className="flex flex-col-reverse md:flex-row w-full min-h-screen max-w-7xl items-center justify-center p-8 relative overflow-x-hidden">
         <div className='w-full h-fit md:h-full md:w-2/5 flex flex-col justify-center items-center md:items-start gap-8'>
@@ -361,23 +377,32 @@ const GitHubPage = () => {
                 ) : (
                   <>
                     <div className="mb-4">
-                      <Button 
-                        onClick={createAutoFixPR}
-                        disabled={!githubToken.trim() || isCreatingPR || analysisResults.results.length === 0}
-                        className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isCreatingPR ? (
-                          <>
-                            <span className="animate-spin mr-2">🤖</span>
-                            Creating Auto-Fix PR...
-                          </>
-                        ) : (
-                          <>
-                            <span className="mr-2">🚀</span>
-                            Create Auto-Fix PR ({analysisResults.results.reduce((sum, file) => sum + file.errors.length, 0)} issues)
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex gap-3">
+                        <Button 
+                          onClick={createAutoFixPR}
+                          disabled={!githubToken.trim() || isCreatingPR || analysisResults.results.length === 0}
+                          className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isCreatingPR ? (
+                            <>
+                              <span className="animate-spin mr-2">🤖</span>
+                              Creating Auto-Fix PR...
+                            </>
+                          ) : (
+                            <>
+                              <span className="mr-2">🚀</span>
+                              Create Auto-Fix PR ({analysisResults.results.reduce((sum, file) => sum + file.errors.length, 0)} issues)
+                            </>
+                          )}
+                        </Button>
+                        <Button 
+                          onClick={() => setShow3DView(true)}
+                          className="bg-gradient-to-r from-indigo-500 to-cyan-600 hover:from-indigo-600 hover:to-cyan-700 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 text-sm"
+                        >
+                          <span className="mr-1">🏙️</span>
+                          3D View
+                        </Button>
+                      </div>
                       {!githubToken.trim() && (
                         <p className="text-xs text-gray-600 mt-2 text-center">
                           Enter GitHub token above to enable PR creation
@@ -456,6 +481,7 @@ const GitHubPage = () => {
         </div>
       </section>
     </main>
+    </>
   )
 }
 
