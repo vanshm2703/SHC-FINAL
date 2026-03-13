@@ -16,14 +16,13 @@ import Modal from "@/components/component/modal";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
-
 import { OutputChips } from "@/components/component/outputs";
 import toast from "react-hot-toast";
 
 export default function Dashboard() {
 
-  const [lang, setLang] = useState();
-  const [code, setCode] = useState();
+  const [lang, setLang] = useState<string>("");
+  const [code, setCode] = useState<string>("");
   const auth = useAuth();
   const refinePromptRef = useRef<HTMLInputElement | null>(null);
   const inputSchemaRef = useRef<HTMLInputElement | null>(null);
@@ -81,7 +80,8 @@ export default function Dashboard() {
         console.log("History saved:", historyResponse.data);
       } catch (historyError: any) {
         console.error("Warning: Failed to save history:", historyError);
-        toast.error(`Warning: Code generated but history save failed: ${historyError.message}`);
+        // Don't show error to user - history save failure shouldn't block code generation
+        console.log("History save failed but code generation succeeded");
       }
     } catch (error: any) {
       console.error("Error in onGeneratePressed:", error);
@@ -91,43 +91,74 @@ export default function Dashboard() {
 
   const onRefinePressed = async () => {
     try {
-      toast.loading("Refining the code...")
+      // Check if code exists
+      if (!code || code.trim() === "") {
+        toast.error("Please generate code first before refining");
+        return;
+      }
 
-      const URL = `/api/refine?code=${encodeURIComponent(code || '')}&changes=${encodeURIComponent(refinePromptRef.current?.value || '')}&inputSchema=${encodeURIComponent(inputSchemaRef.current?.value || '')}&outputSchema=${encodeURIComponent(outputSchemaRef.current?.value || '')}&dataSources=${encodeURIComponent(dataSourcesRef.current?.value || '')}`
-      const response = await axios.get(URL);
-      console.log(response.data)
+      // Check if refine prompt is provided
+      const refinePrompt = refinePromptRef.current?.value?.trim();
+      if (!refinePrompt) {
+        toast.error("Please enter a refine prompt");
+        return;
+      }
+
+      const URL = `/api/refine?code=${encodeURIComponent(code || '')}&changes=${encodeURIComponent(refinePrompt)}&inputSchema=${encodeURIComponent(inputSchemaRef.current?.value || '')}&outputSchema=${encodeURIComponent(outputSchemaRef.current?.value || '')}&dataSources=${encodeURIComponent(dataSourcesRef.current?.value || '')}`
       
+      console.log("Refine URL:", URL);
+      console.log("Refine Parameters - Code length:", code.length, "Changes:", refinePrompt);
+      
+      // Create the API request promise
+      const refinePromise = axios.get(URL).then((response) => {
+        console.log("Refine response:", response.data);
+        return response.data;
+      });
+
+      // Use toast.promise for better async handling
+      const result = await toast.promise(
+        refinePromise,
+        {
+          loading: 'Refining your code...',
+          success: 'Code refined successfully! ✨',
+          error: 'Failed to refine code'
+        }
+      );
+
       // Extract values from response
-      const refinedLanguage = response.data.language;
-      const refinedCode = response.data.code;
+      const refinedLanguage = result.language;
+      const refinedCode = result.code;
       
       // Update state with new values
       setLang(refinedLanguage);
       setCode(refinedCode);
 
-      toast.success("Refined code successfully")
+      // Clear the refine prompt input
+      if (refinePromptRef.current) {
+        refinePromptRef.current.value = "";
+      }
 
-      // Save to MongoDB history (separate try-catch so code refinement doesn't fail if history save fails)
+      // Save to MongoDB history (non-blocking)
       try {
         const historyData = {
           userId: auth?.user?.uid,
           code: refinedCode,
-          prompt: refinePromptRef.current?.value,
+          prompt: refinePrompt,
           pfp: auth?.user?.photoURL,
           schema: { input: inputSchemaRef.current?.value, output: outputSchemaRef.current?.value },
           language: refinedLanguage,
           dataSources: dataSourcesRef.current?.value
         };
 
-        const historyResponse = await axios.post("/api/history", historyData);
-        console.log("History saved:", historyResponse.data);
+        axios.post("/api/history", historyData).catch((err) => {
+          console.error("Warning: Failed to save history:", err);
+        });
       } catch (historyError: any) {
         console.error("Warning: Failed to save history:", historyError);
-        toast.error(`Warning: Code refined but history save failed: ${historyError.message}`);
       }
     } catch (error: any) {
       console.error("Error in onRefinePressed:", error);
-      toast.error(`Error: ${error.response?.data?.error || error.message || "Failed to refine code"}`);
+      // Toast error is already shown by toast.promise
     }
   }
 

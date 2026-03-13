@@ -1,99 +1,99 @@
 import { NextResponse } from "next/server";
 
-const {
-    GoogleGenerativeAI,
-    HarmCategory,
-    HarmBlockThreshold,
-} = require("@google/generative-ai");
-
-const MODEL_NAME = "gemini-2.5-flash";
-const API_KEY = "AIzaSyDnams8EAFDaQ91pOY49X_GnW8Oxi0DUSI";
-
-
-
 const promptMaker = (code: string, changes: string, inputSchema: string, outputSchema: string, dataSources: string) => {
-    return `**Code:** ${code}
-    **Changes:** ${changes}
-    
-    **Constraints:**
-    - Refine the give code and perform the given changes.
-    - Ensure the code is well-structured and bug-free.
-    - Include clear and concise comments or docstrings to explain the code's logic.
-    - Code should be production ready.
-    - Strictly follow the schemas for input and output.
-    
-    **Desired Outcome:**
-    A WORKING code snippet that is improved version of the given code with implementing the given changes
-    
-    **Input Schema:** ${inputSchema}
-    **Output Schema:** ${outputSchema}
+    return `You are an expert code refiner. Improve and refine the given code with the requested changes.
 
-    **Data Sources:** ${dataSources}
+**Original Code:**
+${code}
 
-    **Updated Code:** `;
-}
+**Changes to Apply:** ${changes}
 
-async function run(text: string) {
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+**Constraints:**
+- Refine the code and apply the requested changes
+- Ensure the code is well-structured and bug-free
+- Include clear comments/docstrings
+- Code should be production-ready
+- Strictly follow the input and output schemas
+- Respond with ONLY the improved code, no explanations
 
-    const generationConfig = {
-        temperature: 0.9,
-        topK: 1,
-        topP: 1,
-        maxOutputTokens: 2048,
-    };
+**Input Schema:** ${inputSchema}
+**Output Schema:** ${outputSchema}
+${dataSources ? `**Data Sources:** ${dataSources}` : ""}
 
-    const safetySettings = [
-        {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-    ];
-
-    const parts: object[] = [{ text: text },];
-
-    const result = await model.generateContent({
-        contents: [{ role: "user", parts }],
-        generationConfig,
-        safetySettings,
-    });
-
-    const response = result.response;
-    return response.text();
+Start with the programming language on the first line (e.g., python, javascript) then the refined code.`;
 }
 
 export async function GET(request: any) {
     try {
-        // Extract text from the query parameter
         const code = request.nextUrl.searchParams.get("code");
         const changes = request.nextUrl.searchParams.get("changes");
         const inputSchema = request.nextUrl.searchParams.get("inputSchema");
         const outputSchema = request.nextUrl.searchParams.get("outputSchema");
         const dataSources = request.nextUrl.searchParams.get("dataSources");
 
+        console.log("Refine Parameters:", { codeLength: code?.length, changes, inputSchema, outputSchema, dataSources })
+        
+        // Validate that required parameters are provided
+        if (!code || !changes) {
+            return NextResponse.json({ 
+                error: "Missing required parameters: code and changes are required" 
+            }, { status: 400 });
+        }
 
-        console.log(code, changes, inputSchema, outputSchema, dataSources)
-        var output: string = await run(promptMaker(code, changes, inputSchema, outputSchema, dataSources));
-        var outputAsArray = output.split("\n");
-        var genLang = outputAsArray[0].replaceAll("`", "")
-        var genCode = outputAsArray.slice(1, -1).join("\n");
-        return NextResponse.json({ code: genCode, language: genLang }, { status: 200 });
+        const apiKey = process.env.GROQ_API_KEY;
+        if (!apiKey) {
+            console.error("GROQ_API_KEY is not set");
+            return NextResponse.json({ 
+                error: "GROQ_API_KEY is not configured" 
+            }, { status: 500 });
+        }
+
+        console.log("Calling Groq API for refinement...");
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    {
+                        role: "user",
+                        content: promptMaker(code, changes, inputSchema, outputSchema, dataSources),
+                    },
+                ],
+                temperature: 0.7,
+                max_tokens: 2048,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            console.error("Groq API Error Response:", errorData);
+            throw new Error(`Groq API error: ${response.status} - ${errorData}`);
+        }
+
+        const data = await response.json();
+        const output = data.choices[0]?.message?.content || "";
+        
+        console.log("Groq Response for refine:", output);
+
+        // Parse the response
+        const outputAsArray = output.split("\n").filter((line: string) => line.trim());
+        const genLang = outputAsArray[0]?.replace(/```/g, "").trim() || "python";
+        const genCode = outputAsArray.slice(1).join("\n").replace(/```/g, "").trim();
+
+        console.log("Refined - Language:", genLang, "Code length:", genCode.length);
+
+        return NextResponse.json({ 
+            code: genCode, 
+            language: genLang 
+        }, { status: 200 });
     } catch (error: any) {
         console.error("Error:", error.message);
-        // Return an error response if there's an issue
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ 
+            error: error.message || "Internal Server Error",
+        }, { status: 500 });
     }
 }
