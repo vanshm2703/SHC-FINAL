@@ -10,7 +10,7 @@ export default function TabsDemo() {
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
             <p>Beautiful design meets powerful functionality</p>
-            <DummyContent imageSrc="/zero.jpeg" />
+            <DummyContent imageSrc="/seven.jpeg" />
           </div>
         ),
       },
