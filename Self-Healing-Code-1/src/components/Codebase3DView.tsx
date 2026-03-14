@@ -48,6 +48,10 @@ interface Codebase3DViewProps {
   repoUrl?: string;
   branchName?: string;
   githubToken?: string;
+  userId?: string;
+  userEmail?: string;
+  totalPoints?: number;
+  onPointsEarned?: (points: number) => void;
 }
 
 // Bug Monster Component - appears on buggy buildings
@@ -1285,14 +1289,19 @@ const FileDetailsPanel: React.FC<{
 };
 
 // Main Component
-const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClose, repoUrl, branchName, githubToken }) => {
+const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClose, repoUrl, branchName, githubToken, totalPoints = 0, onPointsEarned, userId, userEmail }) => {
   const [selectedFile, setSelectedFile] = useState<FileWithStatus | null>(null);
   const [healingFile, setHealingFile] = useState<string | null>(null);
   const [filesState, setFilesState] = useState<FileWithStatus[]>([]);
-  const [totalPoints, setTotalPoints] = useState<number>(0);
+  const [userTotalPoints, setUserTotalPoints] = useState<number>(totalPoints);
   const [prsCreated, setPrsCreated] = useState<number>(0);
   const [isCreatingPR, setIsCreatingPR] = useState<boolean>(false);
   const [latestPrUrl, setLatestPrUrl] = useState<string | null>(null);
+
+  // Update points when prop changes
+  useEffect(() => {
+    setUserTotalPoints(totalPoints);
+  }, [totalPoints]);
 
   // Initialize files - only show REAL files from the repo
   useEffect(() => {
@@ -1398,13 +1407,43 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
         status: 'green' as const 
       } : prev
     );
-    
-    // Update total points and PR count
-    setTotalPoints(prev => prev + pointsEarned);
+
+    // Update total points and PR count - notify parent
+    setUserTotalPoints(prev => prev + pointsEarned);
+    if (onPointsEarned) {
+      onPointsEarned(pointsEarned);
+    }
     if (prCreated) {
       setPrsCreated(prev => prev + 1);
     }
-    
+
+    // Save points to database
+    if (userId) {
+      try {
+        await fetch('/api/save-points', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            userEmail: userEmail || '',
+            points: pointsEarned,
+            prUrl: prUrl,
+            prNumber: 0,
+            repoName: analysisResults.repoName || '',
+            branchName: branchName || 'main',
+            bugsFixed: [{
+              filename: healingFile,
+              severity: 'mixed',
+              message: 'Fixed via 3D healing interface'
+            }],
+            severityBreakdown: {},
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to save points to database:', err);
+      }
+    }
+
     setHealingFile(null);
   };
 
@@ -1429,15 +1468,15 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
           
           {/* Points & Stats Display */}
           <div className="flex items-center gap-4">
-            {/* Points Counter */}
-            <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/50 rounded-xl px-5 py-2.5 flex items-center gap-3">
+            {/* User Total Points */}
+            <div className="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/50 rounded-xl px-5 py-2.5 flex items-center gap-3">
               <span className="text-2xl">⭐</span>
               <div>
-                <p className="text-xs text-yellow-400 font-medium">POINTS</p>
-                <p className="text-2xl font-bold text-yellow-300">{totalPoints.toLocaleString()}</p>
+                <p className="text-xs text-yellow-400 font-medium">TOTAL POINTS</p>
+                <p className="text-2xl font-bold text-yellow-300">{userTotalPoints.toLocaleString()}</p>
               </div>
             </div>
-            
+
             {/* PRs Created */}
             <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/50 rounded-xl px-5 py-2.5 flex items-center gap-3">
               <span className="text-2xl">🔀</span>
@@ -1446,7 +1485,7 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
                 <p className="text-2xl font-bold text-purple-300">{prsCreated}</p>
               </div>
             </div>
-            
+
             {/* Bugs Fixed */}
             <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/50 rounded-xl px-5 py-2.5 flex items-center gap-3">
               <span className="text-2xl">🏰</span>

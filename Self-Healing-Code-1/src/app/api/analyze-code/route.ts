@@ -14,8 +14,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid prompt provided' }, { status: 400 });
     }
     
-    // Enhanced prompt for better error detection
+    // Enhanced prompt for better error detection with severity classification
     const enhancedPrompt = `You are a code analysis expert. Analyze the provided code and identify ALL issues including syntax errors, logic bugs, security vulnerabilities, performance problems, and code quality issues.
+
+Classify each issue with a severity level:
+- "critical": Security vulnerabilities, data loss risks, crashes, infinite loops, memory leaks that crash the app
+- "high": Logic errors that produce wrong results, unhandled exceptions, race conditions, SQL injection potential
+- "medium": Performance issues, missing error handling, deprecated API usage, poor resource management
+- "low": Code style issues, missing documentation, naming convention violations, minor code smells
+
+Also set "type" to "error" for critical/high severity, and "warning" for medium/low.
 
 ${prompt}
 
@@ -24,6 +32,7 @@ IMPORTANT: You MUST respond with ONLY valid JSON in this exact format. Do not in
   "errors": [
     {
       "type": "error",
+      "severity": "high",
       "message": "Clear description of the specific issue",
       "line": 1,
       "suggestion": "Specific fix recommendation"
@@ -65,6 +74,13 @@ If no issues are found, return: {"errors": []}`;
       
       // Validate the response structure
       if (parsedResult && typeof parsedResult === 'object' && Array.isArray(parsedResult.errors)) {
+        // Normalize severity values - fallback if AI omits or returns unexpected value
+        const validSeverities = ['critical', 'high', 'medium', 'low'];
+        parsedResult.errors = parsedResult.errors.map((err: any) => ({
+          ...err,
+          severity: validSeverities.includes(err.severity) ? err.severity :
+            err.type === 'error' ? 'high' : 'medium',
+        }));
         return NextResponse.json(parsedResult);
       } else {
         console.log('Invalid response structure:', parsedResult);

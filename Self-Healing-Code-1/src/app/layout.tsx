@@ -26,16 +26,7 @@ const navItems = [
     link: "/dashboard",
     icon: <IconUser className="h-4 w-4 text-neutral-500 dark:text-white" />,
   },
-  {
-    name: "Login",
-    link: "/login",
-    icon: <FaLock className="h-4 w-4 text-neutral-500 dark:text-white" />,
-  },
-  {
-    name: "Register",
-    link: "/signup",
-    icon: <FaFlag className="h-4 w-4 text-neutral-500 dark:text-white" />,
-  },
+  
   {
     name: "Github",
     link: "/github",

@@ -23,6 +23,7 @@ interface FixRequest {
     filename: string;
     errors: Array<{
       type: string;
+      severity?: string;
       message: string;
       line: number;
       suggestion?: string;
@@ -155,16 +156,24 @@ export async function POST(request: NextRequest) {
 
       // Create pull request
       const totalIssues = analysisResults.reduce((sum, file) => sum + file.errors.length, 0);
+      const severityCounts = analysisResults.flatMap(f => f.errors).reduce((acc, e) => {
+        const sev = e.severity || 'medium';
+        acc[sev] = (acc[sev] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
       const prBody = sanitizeText(`## Automated Code Fixes
 
 This PR contains automatic fixes for **${totalIssues} code quality issues** detected by AI analysis.
+
+### Severity Summary:
+${Object.entries(severityCounts).map(([sev, count]) => `- **${sev.toUpperCase()}**: ${count}`).join('\n')}
 
 ### Files Fixed:
 ${analysisResults.map(file => `- \`${file.filename}\` (${file.errors.length} issues)`).join('\n')}
 
 ### Issues Addressed:
 ${analysisResults.flatMap(file =>
-  file.errors.map(error => `- **${file.filename}:${error.line}** - ${error.message}`)
+  file.errors.map(error => `- **${file.filename}:${error.line}** [${(error.severity || 'medium').toUpperCase()}] - ${error.message}`)
 ).join('\n')}
 
 ### Auto-Generated Fixes:
