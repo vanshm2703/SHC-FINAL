@@ -3,13 +3,24 @@ import { Tabs } from "../ui/tabs";
 
 export default function TabsDemo() {
   const tabs = [
+
+    {
+        title: "Seamless UI Integration",
+        value: "Seamless UI Integration",
+        content: (
+          <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
+            <p>Beautiful design meets powerful functionality</p>
+            <DummyContent imageSrc="/zero.jpeg" />
+          </div>
+        ),
+      },
     {
       title: "Code generation",
       value: "Code generation",
       content: (
         <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
           <p>Idea to code in seconds. Write it out, we'll build it</p>
-          <DummyContent imageSrc="/1.jpg" />
+          <DummyContent imageSrc="/first.jpeg" />
         </div>
       ),
     },
@@ -19,47 +30,38 @@ export default function TabsDemo() {
       content: (
         <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
           <p>Write like a pro, code like a prompt perfection</p>
-          <DummyContent imageSrc="/1.jpg" />
+          <DummyContent imageSrc="/second.jpeg" />
         </div>
       ),
     },
-    {
-        title: "Structured I/O",
-        value: "Structured I/O",
-        content: (
-          <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
-            <p>Seamless data flow, clear input, perfect output</p>
-            <DummyContent imageSrc="/3.jpg" />
-          </div>
-        ),
-      },
+    
       {
-        title: "Pseudo gen",
+        title: "Create PR",
         value: "",
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
-            <p>See the logic before the code</p>
-            <DummyContent imageSrc="/2.jpg" />
+            <p>Automated PRs, production-ready code</p>
+            <DummyContent imageSrc="/fourth.jpeg" />
           </div>
         ),
       },
       {
-        title: "Version control",
+        title: "Gamified Element",
         value: "chat",
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
-            <p>Experiment fearlessly, iterate effortlessly</p>
-            <DummyContent imageSrc="/5.jpg" />
+            <p>Visualize your codebase in 3D, explore like a game</p>
+            <DummyContent imageSrc="/fifth.jpeg" />
           </div>
         ),
       },
       {
-        title: "VS code",
-        value: "VS code",
+        title: "Knowledge Graph",
+        value: "Knowledge Graph",
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
-            <p>Ensure secure and authorized deployment process</p>
-            <DummyContent imageSrc="/6.jpg" />
+            <p>Visualize code connections, see the bigger picture</p>
+            <DummyContent imageSrc="/sixth.jpeg" />
           </div>
         ),
       },
