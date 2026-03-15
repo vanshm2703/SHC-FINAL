@@ -35,16 +35,16 @@ interface KnowledgeGraphProps {
   onClose: () => void;
 }
 
-const NODE_COLORS: Record<string, { hex: number; css: string; glow: string }> = {
-  repo:        { hex: 0x00ff41, css: '#00ff41', glow: '#00ff41' },
-  dir:         { hex: 0x00d4ff, css: '#00d4ff', glow: '#00d4ff' },
-  file:        { hex: 0xff00ff, css: '#ff00ff', glow: '#ff00ff' },
-  contributor: { hex: 0xffff00, css: '#ffff00', glow: '#ffff00' },
-  branch:      { hex: 0xff6600, css: '#ff6600', glow: '#ff6600' },
-  topic:       { hex: 0x00ff88, css: '#00ff88', glow: '#00ff88' },
-  stats:       { hex: 0xff3366, css: '#ff3366', glow: '#ff3366' },
-  language:    { hex: 0x9966ff, css: '#9966ff', glow: '#9966ff' },
-};
+const getNodeColors = (isDark: boolean): Record<string, { hex: number; css: string; glow: string }> => ({
+  repo:        { hex: isDark ? 0x00ff41 : 0x2563eb, css: isDark ? '#00ff41' : '#2563eb', glow: isDark ? '#00ff41' : '#2563eb' },
+  dir:         { hex: isDark ? 0x00d4ff : 0x0891b2, css: isDark ? '#00d4ff' : '#0891b2', glow: isDark ? '#00d4ff' : '#0891b2' },
+  file:        { hex: isDark ? 0xff00ff : 0xd946ef, css: isDark ? '#ff00ff' : '#d946ef', glow: isDark ? '#ff00ff' : '#d946ef' },
+  contributor: { hex: isDark ? 0xffff00 : 0xf59e0b, css: isDark ? '#ffff00' : '#f59e0b', glow: isDark ? '#ffff00' : '#f59e0b' },
+  branch:      { hex: isDark ? 0xff6600 : 0xea580c, css: isDark ? '#ff6600' : '#ea580c', glow: isDark ? '#ff6600' : '#ea580c' },
+  topic:       { hex: isDark ? 0x00ff88 : 0x10b981, css: isDark ? '#00ff88' : '#10b981', glow: isDark ? '#00ff88' : '#10b981' },
+  stats:       { hex: isDark ? 0xff3366 : 0xdc2626, css: isDark ? '#ff3366' : '#dc2626', glow: isDark ? '#ff3366' : '#dc2626' },
+  language:    { hex: isDark ? 0x9966ff : 0x7c3aed, css: isDark ? '#9966ff' : '#7c3aed', glow: isDark ? '#9966ff' : '#7c3aed' },
+});
 
 // Even distribution on sphere surface
 function fibonacciSphere(n: number, radius: number): [number, number, number][] {
@@ -112,6 +112,8 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
   const [matrixChars, setMatrixChars] = useState<
     { char: string; x: number; y: number; speed: number; opacity: number }[]
   >([]);
+  const [themeMode,   setThemeMode]   = useState<'light' | 'dark' | 'system'>('system');
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
 
   // Matrix rain
   useEffect(() => {
@@ -142,7 +144,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
   };
 
   // Canvas-texture label sprite — always billboards toward camera (Three.js Sprite)
-  const makeSprite = useCallback((THREE: any, label: string, type: string, isRepo = false) => {
+  const makeSprite = useCallback((THREE: any, label: string, type: string, isDarkMode: boolean, isRepo = false) => {
     const W = isRepo ? 260 : 190;
     const H = isRepo ? 68  : 50;
     const canvas  = document.createElement('canvas');
@@ -151,6 +153,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
     const ctx = canvas.getContext('2d')!;
     ctx.scale(2, 2);
 
+    const NODE_COLORS = getNodeColors(isDarkMode);
     const color = NODE_COLORS[type]?.css ?? '#ffffff';
     ctx.clearRect(0, 0, W, H);
 
@@ -197,10 +200,11 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
     return sprite;
   }, []);
 
-  const buildScene = useCallback(async (nodes: GraphNode[], edges: [string, string][]) => {
+  const buildScene = useCallback(async (nodes: GraphNode[], edges: [string, string][], isDarkMode: boolean) => {
     if (!mountRef.current) return;
 
     const THREE = await import('three');
+    const NODE_COLORS = getNodeColors(isDarkMode);
 
     // Teardown previous
     cancelAnimationFrame(frameRef.current);
@@ -217,7 +221,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(W, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x000000, 0);
+    renderer.setClearColor(isDarkMode ? 0x000000 : 0xf0f4f8, 0);
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -236,7 +240,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
     // Reference wireframe sphere
     globe.add(new THREE.Mesh(
       new THREE.SphereGeometry(10.5, 28, 18),
-      new THREE.MeshBasicMaterial({ color: 0x00ff41, wireframe: true, transparent: true, opacity: 0.032 })
+      new THREE.MeshBasicMaterial({ color: isDarkMode ? 0x00ff41 : 0x2563eb, wireframe: true, transparent: true, opacity: isDarkMode ? 0.032 : 0.05 })
     ));
 
     // ── Place nodes ────────────────────────────────────────────────────────
@@ -265,7 +269,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
       halo.position.set(0, 0, 0);
       globe.add(halo);
 
-      const sprite = makeSprite(THREE, repoNode.label, 'repo', true);
+      const sprite = makeSprite(THREE, repoNode.label, 'repo', isDarkMode, true);
       sprite.position.set(0, R + 1.7, 0);
       globe.add(sprite);
 
@@ -301,7 +305,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
 
       // Label sprite offset outward along normal
       const labelOffset = normal.clone().multiplyScalar(R + 1.2);
-      const sprite = makeSprite(THREE, node.label, node.type);
+      const sprite = makeSprite(THREE, node.label, node.type, isDarkMode);
       sprite.position.set(x + labelOffset.x, y + labelOffset.y, z + labelOffset.z);
       globe.add(sprite);
 
@@ -320,7 +324,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
       if (!a || !b) return;
       globe.add(new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([a, b]),
-        new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0.14 })
+        new THREE.LineBasicMaterial({ color: isDarkMode ? 0x00ff41 : 0x2563eb, transparent: true, opacity: isDarkMode ? 0.14 : 0.25 })
       ));
     });
 
@@ -493,6 +497,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
   const fetchRepoData = useCallback(async (owner: string, repo: string) => {
     setLoading(true);
     setError('');
+    const isDarkMode = themeMode === 'dark' || (themeMode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     try {
       const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
       if (!repoRes.ok) throw new Error('Failed to fetch repository. Check the URL and try again.');
@@ -545,7 +550,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
       branches.slice(0, 5).forEach((b: Branch, i: number) =>
         add(`branch-${i}`, b.name, 'branch'));
 
-      await buildScene(nodes, edges);
+      await buildScene(nodes, edges, isDarkMode);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -567,15 +572,27 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
     };
   }, [repoUrl, fetchRepoData]);
 
-  return (
+  // Theme variables
+  const isDarkMode = themeMode === 'dark' || (themeMode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const bgColor = isDarkMode ? '#000' : '#f0f4f8';
+  const panelBg = isDarkMode ? 'rgba(0,10,20,0.88)' : 'rgba(240,244,248,0.92)';
+  const panelBorder = isDarkMode ? 'rgba(0,255,65,0.3)' : 'rgba(100,150,200,0.3)';
+  const panelBorderHover = isDarkMode ? 'rgba(0,255,65,0.15)' : 'rgba(100,150,200,0.15)';
+  const headerBg = isDarkMode ? 'rgba(0,18,28,0.7)' : 'rgba(240,244,248,0.8)';
+  const textColor = isDarkMode ? '#fff' : '#1a1a2e';
+  const accentColor = isDarkMode ? '#00ff41' : '#2563eb';
+  const matrixColor = isDarkMode ? 'rgba(0,255,65,0.35)' : 'rgba(37,99,235,0.3)';
+
+  return (() => {
+    return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
       {/* Matrix rain */}
-      <div style={{ position: 'absolute', inset: 0, background: '#000', overflow: 'hidden', pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', inset: 0, background: bgColor, overflow: 'hidden', pointerEvents: 'none' }}>
         {matrixChars.map((d, i) => (
           <span key={i} style={{
             position: 'absolute', left: `${d.x}%`, top: `${d.y}%`,
-            color: '#00ff41', fontFamily: 'monospace', fontSize: 13,
+            color: accentColor, fontFamily: 'monospace', fontSize: 13,
             opacity: d.opacity, userSelect: 'none',
           }}>{d.char}</span>
         ))}
@@ -584,61 +601,130 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
       {/* Panel */}
       <div style={{
         position: 'relative', width: '95vw', height: '90vh', borderRadius: 16, overflow: 'hidden',
-        background: 'rgba(0,10,20,0.88)',
-        border: '1px solid rgba(0,255,65,0.3)',
-        boxShadow: '0 0 60px rgba(0,255,65,0.12), inset 0 0 80px rgba(0,255,65,0.03)',
+        background: panelBg,
+        border: `1px solid ${panelBorder}`,
+        boxShadow: isDarkMode ? '0 0 60px rgba(0,255,65,0.12), inset 0 0 80px rgba(0,255,65,0.03)' : '0 0 30px rgba(100,150,200,0.1), inset 0 0 40px rgba(100,150,200,0.02)',
       }}>
 
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '12px 20px', position: 'relative', zIndex: 10,
-          borderBottom: '1px solid rgba(0,255,65,0.2)',
-          background: 'rgba(0,18,28,0.7)',
+          borderBottom: `1px solid ${panelBorderHover}`,
+          background: headerBg,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 9, height: 9, borderRadius: '50%', background: '#00ff41',
-              boxShadow: '0 0 8px #00ff41', animation: 'pulse 2s infinite',
+              width: 9, height: 9, borderRadius: '50%', background: accentColor,
+              boxShadow: `0 0 8px ${accentColor}`, animation: 'pulse 2s infinite',
             }} />
-            <span style={{ color: '#fff', fontFamily: 'monospace', fontSize: 17, fontWeight: 700, textShadow: '0 0 8px #00ff41' }}>
+            <span style={{ color: textColor, fontFamily: 'monospace', fontSize: 17, fontWeight: 700, textShadow: `0 0 8px ${accentColor}` }}>
               Repository Knowledge Globe
             </span>
           </div>
 
           {repoInfo && (
-            <div style={{ display: 'flex', gap: 20, fontSize: 13, fontFamily: 'monospace' }}>
-              <span style={{ color: '#ffcc00' }}>★ {repoInfo.stars.toLocaleString()}</span>
-              <span style={{ color: '#00d4ff' }}>⑂ {repoInfo.forks.toLocaleString()}</span>
-              <span style={{ color: '#9966ff' }}>{repoInfo.language}</span>
+            <div style={{ display: 'flex', gap: 20, fontSize: 13, fontFamily: 'monospace', color: textColor }}>
+              <span style={{ color: isDarkMode ? '#ffcc00' : '#f59e0b' }}>★ {repoInfo.stars.toLocaleString()}</span>
+              <span style={{ color: isDarkMode ? '#00d4ff' : '#06b6d4' }}>⑂ {repoInfo.forks.toLocaleString()}</span>
+              <span style={{ color: isDarkMode ? '#9966ff' : '#8b5cf6' }}>{repoInfo.language}</span>
             </div>
           )}
 
           {hoveredNode && (
             <div style={{
               position: 'absolute', left: '50%', transform: 'translateX(-50%)',
-              background: 'rgba(0,0,0,0.92)',
-              border: `1px solid ${NODE_COLORS[hoveredNode.type]?.css ?? '#fff'}`,
+              background: panelBg,
+              border: `1px solid ${getNodeColors(isDarkMode)[hoveredNode.type]?.css ?? '#fff'}`,
               borderRadius: 8, padding: '4px 14px', pointerEvents: 'none',
-              color: '#fff', fontFamily: 'monospace', fontSize: 13,
-              boxShadow: `0 0 14px ${NODE_COLORS[hoveredNode.type]?.css ?? '#fff'}55`,
+              color: textColor, fontFamily: 'monospace', fontSize: 13,
+              boxShadow: `0 0 14px ${getNodeColors(isDarkMode)[hoveredNode.type]?.css ?? '#fff'}55`,
             }}>
-              <span style={{ color: NODE_COLORS[hoveredNode.type]?.css ?? '#fff', marginRight: 8, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+              <span style={{ color: getNodeColors(isDarkMode)[hoveredNode.type]?.css ?? '#fff', marginRight: 8, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
                 {hoveredNode.type}
               </span>
               {hoveredNode.label}
             </div>
           )}
 
+          {/* Theme Toggle Button */}
+          <button
+            onClick={() => setIsThemeOpen(!isThemeOpen)}
+            style={{
+              position: 'relative', zIndex: 20,
+              padding: '6px 10px', borderRadius: 6,
+              background: panelBorderHover,
+              border: `1px solid ${accentColor}`,
+              color: accentColor, cursor: 'pointer',
+              fontFamily: 'monospace', fontSize: 13, fontWeight: 600,
+              transition: 'all 0.2s', display: 'flex', alignItems: 'center',
+              boxShadow: `0 0 8px ${accentColor}22`,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = accentColor;
+              e.currentTarget.style.color = panelBg;
+              e.currentTarget.style.boxShadow = `0 0 12px ${accentColor}66`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = panelBorderHover;
+              e.currentTarget.style.color = accentColor;
+              e.currentTarget.style.boxShadow = `0 0 8px ${accentColor}22`;
+            }}>
+            {themeMode === 'dark' ? '🌙' : themeMode === 'light' ? '☀️' : '🖥️'}
+          </button>
+
+          {/* Theme Dropdown */}
+          {isThemeOpen && (
+            <div style={{
+              position: 'absolute', top: 50, right: 20, zIndex: 30,
+              background: panelBg, border: `1px solid ${panelBorder}`,
+              borderRadius: 8, overflow: 'hidden',
+              boxShadow: isDarkMode ? '0 8px 32px rgba(0,255,65,0.15)' : '0 8px 32px rgba(100,150,200,0.15)',
+            }}>
+              {(['dark', 'light', 'system'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    setThemeMode(mode);
+                    setIsThemeOpen(false);
+                  }}
+                  style={{
+                    display: 'block', width: '100%',
+                    padding: '8px 16px', border: 'none',
+                    background: themeMode === mode ? accentColor : 'transparent',
+                    color: themeMode === mode ? '#000' : textColor,
+                    textAlign: 'left', cursor: 'pointer',
+                    fontFamily: 'monospace', fontSize: 13,
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (themeMode !== mode) {
+                      e.currentTarget.style.background = `${accentColor}44`;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (themeMode !== mode) {
+                      e.currentTarget.style.background = 'transparent';
+                    }
+                  }}>
+                  {mode === 'dark' ? '🌙 Dark' : mode === 'light' ? '☀️ Light' : '🖥️ System'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Close Button */}
           <button
             onClick={onClose}
             style={{
               padding: '6px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13,
-              border: '1px solid rgba(255,50,50,0.5)', fontFamily: 'monospace',
-              background: 'rgba(255,0,0,0.14)', color: '#ff5555', transition: 'background 0.2s',
+              border: isDarkMode ? '1px solid rgba(255,50,50,0.5)' : '1px solid rgba(200,50,50,0.6)',
+              fontFamily: 'monospace',
+              background: isDarkMode ? 'rgba(255,0,0,0.14)' : 'rgba(255,100,100,0.15)',
+              color: isDarkMode ? '#ff5555' : '#dc2626', transition: 'background 0.2s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,0,0,0.3)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,0,0,0.14)'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = isDarkMode ? 'rgba(255,0,0,0.3)' : 'rgba(255,100,100,0.3)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = isDarkMode ? 'rgba(255,0,0,0.14)' : 'rgba(255,100,100,0.15)'; }}
           >
             ✕ Close
           </button>
@@ -652,15 +738,16 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
           <div style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.65)',
+            background: isDarkMode ? 'rgba(0,0,0,0.65)' : 'rgba(100,100,100,0.3)',
           }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{
                 width: 52, height: 52, margin: '0 auto 16px',
-                border: '3px solid rgba(0,255,65,0.18)', borderTopColor: '#00ff41',
+                border: `3px solid ${isDarkMode ? 'rgba(0,255,65,0.18)' : 'rgba(100,150,200,0.25)'}`,
+                borderTopColor: accentColor,
                 borderRadius: '50%', animation: 'spin 0.75s linear infinite',
               }} />
-              <p style={{ color: '#00ff41', fontFamily: 'monospace', fontSize: 14, textShadow: '0 0 8px #00ff41' }}>
+              <p style={{ color: accentColor, fontFamily: 'monospace', fontSize: 14, textShadow: `0 0 8px ${accentColor}` }}>
                 Building knowledge globe...
               </p>
             </div>
@@ -672,12 +759,14 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
           <div style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(100,100,100,0.4)',
           }}>
             <div style={{
               padding: '24px 32px', borderRadius: 12, textAlign: 'center',
-              background: 'rgba(255,0,0,0.1)', border: '1px solid rgba(255,0,0,0.3)',
+              background: panelBg,
+              border: `1px solid ${isDarkMode ? 'rgba(255,0,0,0.3)' : 'rgba(200,50,50,0.4)'}`,
             }}>
-              <p style={{ color: '#ff5555', fontFamily: 'monospace', fontSize: 15 }}>{error}</p>
+              <p style={{ color: isDarkMode ? '#ff5555' : '#dc2626', fontFamily: 'monospace', fontSize: 15 }}>{error}</p>
             </div>
           </div>
         )}
@@ -685,20 +774,21 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
         {/* Legend — using mini SVG circles to match the actual node style */}
         <div style={{
           position: 'absolute', bottom: 12, left: 12, zIndex: 20,
-          background: 'rgba(0,6,14,0.93)', border: '1px solid rgba(0,255,65,0.18)',
+          background: panelBg,
+          border: `1px solid ${panelBorder}`,
           borderRadius: 10, padding: '10px 14px',
         }}>
-          <div style={{ color: '#00ff41', fontFamily: 'monospace', fontSize: 10, fontWeight: 700, marginBottom: 7, letterSpacing: 2 }}>
+          <div style={{ color: accentColor, fontFamily: 'monospace', fontSize: 10, fontWeight: 700, marginBottom: 7, letterSpacing: 2 }}>
             LEGEND
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 18px' }}>
-            {Object.entries(NODE_COLORS).map(([type, c]) => (
+            {Object.entries(getNodeColors(isDarkMode)).map(([type, c]) => (
               <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <svg width="13" height="13" viewBox="0 0 13 13">
                   <circle cx="6.5" cy="6.5" r="5"   fill={c.css} opacity="0.85" />
                   <circle cx="6.5" cy="6.5" r="5.8" fill="none" stroke={c.css} strokeWidth="1.2" />
                 </svg>
-                <span style={{ color: '#aaa', fontFamily: 'monospace', fontSize: 11, textTransform: 'capitalize' }}>{type}</span>
+                <span style={{ color: textColor, fontFamily: 'monospace', fontSize: 11, textTransform: 'capitalize' }}>{type}</span>
               </div>
             ))}
           </div>
@@ -707,9 +797,10 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
         {/* Controls hint */}
         <div style={{
           position: 'absolute', bottom: 12, right: 12, zIndex: 20,
-          background: 'rgba(0,6,14,0.93)', border: '1px solid rgba(0,255,65,0.18)',
+          background: panelBg,
+          border: `1px solid ${panelBorder}`,
           borderRadius: 10, padding: '8px 14px',
-          color: '#555', fontFamily: 'monospace', fontSize: 11, lineHeight: 1.7,
+          color: textColor, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.7,
         }}>
           <div>↔↕ Drag to rotate in any direction</div>
           <div>⟳ Auto-spins continuously</div>
@@ -722,7 +813,8 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ repoUrl, onClose }) => 
         @keyframes spin  { to { transform: rotate(360deg) } }
       `}</style>
     </div>
-  );
+    );
+  })();
 };
 
 export default KnowledgeGraph;

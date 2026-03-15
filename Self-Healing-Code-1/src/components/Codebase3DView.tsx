@@ -462,15 +462,18 @@ const Building: React.FC<{
 };
 
 // Ground with roads and grass
-const CityGround: React.FC<{ gridSize: number }> = ({ gridSize }) => {
+const CityGround: React.FC<{ gridSize: number; isDarkMode: boolean }> = ({ gridSize, isDarkMode }) => {
   const size = gridSize * 3.5 + 25; // Larger to accommodate SVKM campus
+  const grassColor = isDarkMode ? '#1a472a' : '#4a9d6f';
+  const grassPatchColor = isDarkMode ? '#2d5a27' : '#5fb87d';
+  const roadColor = isDarkMode ? '#2a2a2a' : '#888888';
   
   return (
     <group>
       {/* Main grass area */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
         <planeGeometry args={[size, size]} />
-        <meshStandardMaterial color="#1a472a" />
+        <meshStandardMaterial color={grassColor} />
       </mesh>
       
       {/* Lighter grass patches */}
@@ -485,18 +488,18 @@ const CityGround: React.FC<{ gridSize: number }> = ({ gridSize }) => {
           ]}
         >
           <circleGeometry args={[0.5 + Math.random() * 1, 8]} />
-          <meshStandardMaterial color="#2d5a27" />
+          <meshStandardMaterial color={grassPatchColor} />
         </mesh>
       ))}
       
       {/* Main roads */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <planeGeometry args={[size, 1.5]} />
-        <meshStandardMaterial color="#2a2a2a" />
+        <meshStandardMaterial color={roadColor} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[0, 0.02, 0]}>
         <planeGeometry args={[size, 1.5]} />
-        <meshStandardMaterial color="#2a2a2a" />
+        <meshStandardMaterial color={roadColor} />
       </mesh>
 
       {/* Road markings - center lines */}
@@ -516,11 +519,11 @@ const CityGround: React.FC<{ gridSize: number }> = ({ gridSize }) => {
       {/* Sidewalks around buildings area */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, gridSize + 2]}>
         <planeGeometry args={[gridSize * 3, 0.8]} />
-        <meshStandardMaterial color="#666" />
+        <meshStandardMaterial color={isDarkMode ? '#666' : '#aaa'} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, -gridSize - 2]}>
         <planeGeometry args={[gridSize * 3, 0.8]} />
-        <meshStandardMaterial color="#666" />
+        <meshStandardMaterial color={isDarkMode ? '#666' : '#aaa'} />
       </mesh>
     </group>
   );
@@ -872,8 +875,9 @@ const StreetLamp: React.FC<{ position: [number, number, number] }> = ({ position
 };
 
 // Sky and atmosphere
-const Environment: React.FC = () => {
+const Environment: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) => {
   const starsRef = useRef<THREE.Points>(null);
+  const skyColor = isDarkMode ? '#0a0a1f' : '#e0f2ff';
   
   useFrame(() => {
     if (starsRef.current) {
@@ -882,7 +886,7 @@ const Environment: React.FC = () => {
   });
 
   // Generate star positions
-  const starCount = 800;
+  const starCount = isDarkMode ? 800 : 200; // Fewer stars in light mode
   const starPositions = new Float32Array(starCount * 3);
   for (let i = 0; i < starCount; i++) {
     const theta = Math.random() * Math.PI * 2;
@@ -898,26 +902,32 @@ const Environment: React.FC = () => {
       {/* Sky dome */}
       <mesh>
         <sphereGeometry args={[50, 32, 32]} />
-        <meshBasicMaterial color="#0a0a1f" side={THREE.BackSide} />
+        <meshBasicMaterial color={skyColor} side={THREE.BackSide} />
       </mesh>
       
       {/* Stars */}
-      <points ref={starsRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={starCount}
-            array={starPositions}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <pointsMaterial size={0.15} color="#ffffff" sizeAttenuation transparent opacity={0.8} />
-      </points>
+      {isDarkMode && (
+        <points ref={starsRef}>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              count={starCount}
+              array={starPositions}
+              itemSize={3}
+            />
+          </bufferGeometry>
+          <pointsMaterial size={0.15} color="#ffffff" sizeAttenuation transparent opacity={0.8} />
+        </points>
+      )}
 
-      {/* Moon */}
-      <mesh position={[20, 25, -20]}>
+      {/* Moon/Sun */}
+      <mesh position={isDarkMode ? [20, 25, -20] : [15, 35, -15]}>
         <sphereGeometry args={[2, 16, 16]} />
-        <meshStandardMaterial color="#fffde7" emissive="#fffde7" emissiveIntensity={0.3} />
+        <meshStandardMaterial 
+          color={isDarkMode ? '#fffde7' : '#ffeb3b'} 
+          emissive={isDarkMode ? '#fffde7' : '#ffeb3b'} 
+          emissiveIntensity={isDarkMode ? 0.3 : 0.8}
+        />
       </mesh>
     </>
   );
@@ -930,7 +940,8 @@ const Scene: React.FC<{
   selectedFile: FileWithStatus | null;
   healingFile: string | null;
   onHealComplete: () => void;
-}> = ({ files, onSelectFile, selectedFile, healingFile, onHealComplete }) => {
+  isDarkMode: boolean;
+}> = ({ files, onSelectFile, selectedFile, healingFile, onHealComplete, isDarkMode }) => {
   const gridSize = Math.ceil(Math.sqrt(Math.max(files.length, 1)));
   const spacing = 2.8;
   
@@ -966,17 +977,17 @@ const Scene: React.FC<{
       />
       
       {/* Lighting */}
-      <ambientLight intensity={0.35} />
-      <directionalLight position={[15, 25, 15]} intensity={0.6} castShadow />
-      <pointLight position={[-15, 20, -15]} intensity={0.3} color="#6366f1" />
-      <hemisphereLight intensity={0.25} color="#ffffff" groundColor="#1a472a" />
+      <ambientLight intensity={isDarkMode ? 0.35 : 0.7} />
+      <directionalLight position={[15, 25, 15]} intensity={isDarkMode ? 0.6 : 1} castShadow />
+      <pointLight position={[-15, 20, -15]} intensity={isDarkMode ? 0.3 : 0.15} color={isDarkMode ? '#6366f1' : '#87ceeb'} />
+      <hemisphereLight intensity={isDarkMode ? 0.25 : 0.4} color="#ffffff" groundColor={isDarkMode ? '#1a472a' : '#5fb87d'} />
       
       {/* Environment */}
-      <Environment />
-      <fog attach="fog" args={['#0a0a1f', 35, 70]} />
+      <Environment isDarkMode={isDarkMode} />
+      <fog attach="fog" args={[isDarkMode ? '#0a0a1f' : '#e0f2ff', 35, 70]} />
       
       {/* City ground */}
-      <CityGround gridSize={gridSize} />
+      <CityGround gridSize={gridSize} isDarkMode={isDarkMode} />
       
       {/* SVKM Campus Landmark Buildings */}
       <SVKMCampus 
@@ -1158,7 +1169,8 @@ const FileDetailsPanel: React.FC<{
   onClose: () => void;
   onHeal: () => void;
   isHealing: boolean;
-}> = ({ file, onClose, onHeal, isHealing }) => {
+  isDarkMode?: boolean;
+}> = ({ file, onClose, onHeal, isHealing, isDarkMode = true }) => {
   if (!file) return null;
 
   const errorCount = file.errors.filter(e => e.type === 'error').length;
@@ -1166,7 +1178,7 @@ const FileDetailsPanel: React.FC<{
   const hasBugs = file.errors.length > 0 && !file.isHealed;
 
   return (
-    <div className="absolute top-24 right-4 w-96 bg-gray-900/95 backdrop-blur-md border border-gray-600 rounded-2xl p-5 text-white shadow-2xl z-10">
+    <div className={`absolute top-24 right-4 w-96 ${isDarkMode ? 'bg-gray-900/95 border-gray-600' : 'bg-white/95 border-gray-300'} backdrop-blur-md border rounded-2xl p-5 ${isDarkMode ? 'text-white' : 'text-gray-900'} shadow-2xl z-10`}>
       <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-3">
           <div className={`w-4 h-4 rounded-full ${
@@ -1174,9 +1186,9 @@ const FileDetailsPanel: React.FC<{
             hasBugs ? 'bg-red-500 animate-pulse shadow-red-500/50' : 
             'bg-green-500 shadow-green-500/50'
           } shadow-lg`}></div>
-          <h3 className="text-lg font-bold truncate max-w-[200px]">{file.filename}</h3>
+          <h3 className={`text-lg font-bold truncate max-w-[200px] ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{file.filename}</h3>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-white text-xl transition-colors">✕</button>
+        <button onClick={onClose} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} text-xl transition-colors`}>✕</button>
       </div>
       
       {/* Stats badges */}
@@ -1184,25 +1196,25 @@ const FileDetailsPanel: React.FC<{
         <div className="flex items-center gap-2 px-4 py-2 bg-red-500/20 rounded-xl border border-red-500/30">
           <span className="text-xl">🐛</span>
           <span className="font-bold text-lg">{errorCount}</span>
-          <span className="text-sm text-gray-300">bugs</span>
+          <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>bugs</span>
         </div>
         <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 rounded-xl border border-yellow-500/30">
           <span className="text-xl">⚠️</span>
           <span className="font-bold text-lg">{warningCount}</span>
-          <span className="text-sm text-gray-300">warnings</span>
+          <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>warnings</span>
         </div>
       </div>
 
       {file.isHealed ? (
         <div className="text-center py-6 bg-gradient-to-br from-yellow-500/20 via-amber-500/20 to-orange-500/20 rounded-xl border border-yellow-500/30">
           <span className="text-5xl block mb-3">🏰</span>
-          <p className="text-yellow-400 font-bold text-lg">Palace Built!</p>
-          <p className="text-gray-400 text-sm mt-1">Building transformed after healing</p>
+          <p className={`font-bold text-lg ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>Palace Built!</p>
+          <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Building transformed after healing</p>
           
           {/* Points earned */}
           {file.pointsEarned && file.pointsEarned > 0 && (
-            <div className="mt-4 bg-yellow-500/20 rounded-lg py-2 px-4 inline-block">
-              <span className="text-yellow-300 font-bold text-xl">+{file.pointsEarned} pts</span>
+            <div className={`mt-4 rounded-lg py-2 px-4 inline-block ${isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-500/30'}`}>
+              <span className={`font-bold text-xl ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>+{file.pointsEarned} pts</span>
             </div>
           )}
           
@@ -1263,10 +1275,14 @@ const FileDetailsPanel: React.FC<{
                 <div className="flex items-start gap-2">
                   <span className="text-lg">{error.type === 'error' ? '🐛' : '⚠️'}</span>
                   <div className="flex-1">
-                    <div className="font-semibold text-sm">Line {error.line}</div>
-                    <div className="text-gray-300 text-sm mt-1">{error.message}</div>
+                    <div className={`font-semibold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Line {error.line}</div>
+                    <div className={`text-sm mt-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{error.message}</div>
                     {error.suggestion && (
-                      <div className="text-blue-400 text-xs mt-2 flex items-start gap-1 bg-blue-500/10 p-2 rounded-lg">
+                      <div className={`text-xs mt-2 flex items-start gap-1 p-2 rounded-lg ${
+                        isDarkMode
+                          ? 'text-blue-400 bg-blue-500/10'
+                          : 'text-blue-700 bg-blue-500/20'
+                      }`}>
                         <span>💡</span>
                         <span>{error.suggestion}</span>
                       </div>
@@ -1281,7 +1297,7 @@ const FileDetailsPanel: React.FC<{
         <div className="text-center py-8 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl border border-green-500/30">
           <span className="text-5xl block mb-3">✅</span>
           <p className="text-green-400 font-bold text-lg">Clean code!</p>
-          <p className="text-gray-400 text-sm mt-1">No bugs detected</p>
+          <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>No bugs detected</p>
         </div>
       )}
     </div>
@@ -1297,6 +1313,8 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
   const [prsCreated, setPrsCreated] = useState<number>(0);
   const [isCreatingPR, setIsCreatingPR] = useState<boolean>(false);
   const [latestPrUrl, setLatestPrUrl] = useState<string | null>(null);
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('system');
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
 
   // Update points when prop changes
   useEffect(() => {
@@ -1450,20 +1468,23 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
   const bugsRemaining = filesState.filter(f => f.errors.length > 0 && !f.isHealed).length;
   const healedCount = filesState.filter(f => f.isHealed).length;
 
+  // Determine if dark mode is active
+  const isDarkMode = themeMode === 'dark' || (themeMode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
   return (
-    <div className="fixed inset-0 z-[6000] bg-gradient-to-b from-gray-900 via-gray-900 to-black">
+    <div className={`fixed inset-0 z-[6000] ${isDarkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-black' : 'bg-gradient-to-b from-gray-50 via-white to-gray-100'}`}>
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/95 to-transparent p-4 pb-8">
+      <div className={`absolute top-0 left-0 right-0 z-20 ${isDarkMode ? 'bg-gradient-to-b from-black/95 to-transparent' : 'bg-gradient-to-b from-gray-100/95 to-transparent'} p-4 pb-8`}>
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div>
-            <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+            <h2 className={`text-3xl font-bold flex items-center gap-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
               <span className="text-4xl">🏙️</span> 
               <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
                 Code City
               </span>
-              <span className="text-lg font-normal text-gray-400">- Self Healing View</span>
+              <span className={`text-lg font-normal ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>- Self Healing View</span>
             </h2>
-            <p className="text-gray-400 text-sm mt-1 ml-14">{analysisResults.repoName}</p>
+            <p className={`text-sm mt-1 ml-14 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{analysisResults.repoName}</p>
           </div>
           
           {/* Points & Stats Display */}
@@ -1472,8 +1493,8 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
             <div className="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/50 rounded-xl px-5 py-2.5 flex items-center gap-3">
               <span className="text-2xl">⭐</span>
               <div>
-                <p className="text-xs text-yellow-400 font-medium">TOTAL POINTS</p>
-                <p className="text-2xl font-bold text-yellow-300">{userTotalPoints.toLocaleString()}</p>
+                <p className={`text-xs font-medium ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>TOTAL POINTS</p>
+                <p className={`text-2xl font-bold ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>{userTotalPoints.toLocaleString()}</p>
               </div>
             </div>
 
@@ -1481,8 +1502,8 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
             <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/50 rounded-xl px-5 py-2.5 flex items-center gap-3">
               <span className="text-2xl">🔀</span>
               <div>
-                <p className="text-xs text-purple-400 font-medium">PRs CREATED</p>
-                <p className="text-2xl font-bold text-purple-300">{prsCreated}</p>
+                <p className={`text-xs font-medium ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>PRs CREATED</p>
+                <p className={`text-2xl font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>{prsCreated}</p>
               </div>
             </div>
 
@@ -1490,41 +1511,122 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
             <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/50 rounded-xl px-5 py-2.5 flex items-center gap-3">
               <span className="text-2xl">🏰</span>
               <div>
-                <p className="text-xs text-green-400 font-medium">PALACES BUILT</p>
-                <p className="text-2xl font-bold text-green-300">{healedCount}</p>
+                <p className={`text-xs font-medium ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>PALACES BUILT</p>
+                <p className={`text-2xl font-bold ${isDarkMode ? 'text-green-300' : 'text-green-700'}`}>{healedCount}</p>
               </div>
             </div>
             
             <button
               onClick={onClose}
-              className="px-6 py-2.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-xl text-white transition-all font-medium flex items-center gap-2 ml-2"
+              className={`px-6 py-2.5 rounded-xl transition-all font-medium flex items-center gap-2 ml-2 ${
+                isDarkMode
+                  ? 'bg-white/10 hover:bg-white/20 border border-white/30 text-white'
+                  : 'bg-gray-900/10 hover:bg-gray-900/20 border border-gray-900/30 text-gray-900'
+              }`}
             >
               <span>←</span> Back
             </button>
+
+            {/* Theme Toggle */}
+            <div className="relative ml-3">
+              <button
+                onClick={() => setIsThemeOpen(!isThemeOpen)}
+                className={`p-2.5 transition-all rounded-xl ${
+                  isDarkMode 
+                    ? 'bg-white/10 hover:bg-white/20 border border-white/30 text-white' 
+                    : 'bg-gray-900/10 hover:bg-gray-900/20 border border-gray-900/30 text-gray-900'
+                }`}
+                title="Toggle theme"
+              >
+                {themeMode === 'light' && <span className="text-lg">☀️</span>}
+                {themeMode === 'dark' && <span className="text-lg">🌙</span>}
+                {themeMode === 'system' && <span className="text-lg">🖥️</span>}
+              </button>
+
+              {isThemeOpen && (
+                <div className={`absolute right-0 mt-2 w-40 border rounded-xl shadow-2xl z-50 ${
+                  isDarkMode
+                    ? 'bg-gray-900/95 border-white/30'
+                    : 'bg-white/95 border-gray-300'
+                }`}>
+                  <button
+                    onClick={() => {
+                      setThemeMode('light');
+                      setIsThemeOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2 transition-all border-b ${
+                      themeMode === 'light'
+                        ? isDarkMode
+                          ? 'bg-blue-500/30 border-white/10 text-white'
+                          : 'bg-blue-500/20 border-gray-300 text-gray-900'
+                        : isDarkMode
+                          ? 'border-white/10 text-gray-300 hover:bg-white/5'
+                          : 'border-gray-300 text-gray-600 hover:bg-gray-900/5'
+                    }`}
+                  >
+                    <span>☀️</span> Light
+                  </button>
+                  <button
+                    onClick={() => {
+                      setThemeMode('dark');
+                      setIsThemeOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2 transition-all border-b ${
+                      themeMode === 'dark'
+                        ? isDarkMode
+                          ? 'bg-blue-500/30 border-white/10 text-white'
+                          : 'bg-blue-500/20 border-gray-300 text-gray-900'
+                        : isDarkMode
+                          ? 'border-white/10 text-gray-300 hover:bg-white/5'
+                          : 'border-gray-300 text-gray-600 hover:bg-gray-900/5'
+                    }`}
+                  >
+                    <span>🌙</span> Dark
+                  </button>
+                  <button
+                    onClick={() => {
+                      setThemeMode('system');
+                      setIsThemeOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2 transition-all rounded-b-xl ${
+                      themeMode === 'system'
+                        ? isDarkMode
+                          ? 'bg-blue-500/30 text-white'
+                          : 'bg-blue-500/20 text-gray-900'
+                        : isDarkMode
+                          ? 'text-gray-300 hover:bg-white/5'
+                          : 'text-gray-600 hover:bg-gray-900/5'
+                    }`}
+                  >
+                    <span>🖥️</span> System
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Legend Panel */}
-      <div className="absolute bottom-4 left-4 z-20 bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl p-5 shadow-xl">
-        <h4 className="text-white font-bold mb-4 flex items-center gap-2 text-lg">
+      <div className={`absolute bottom-4 left-4 z-20 ${isDarkMode ? 'bg-gray-900/95 border-gray-700' : 'bg-white/95 border-gray-300'} backdrop-blur-md border rounded-2xl p-5 shadow-xl`}>
+        <h4 className={`font-bold mb-4 flex items-center gap-2 text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
           <span>📍</span> How It Works
         </h4>
         <div className="space-y-3 text-sm">
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 rounded bg-green-500 shadow-lg shadow-green-500/40"></div>
-            <span className="text-gray-200">✅ Clean building</span>
+            <span className={isDarkMode ? 'text-gray-200' : 'text-gray-700'}>✅ Clean building</span>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 rounded bg-yellow-500 shadow-lg shadow-yellow-500/40"></div>
-            <span className="text-gray-200">⚠️ Has warnings</span>
+            <span className={isDarkMode ? 'text-gray-200' : 'text-gray-700'}>⚠️ Has warnings</span>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 rounded bg-red-500 shadow-lg shadow-red-500/40 animate-pulse"></div>
-            <span className="text-gray-200">🐛 Bug monster!</span>
+            <span className={isDarkMode ? 'text-gray-200' : 'text-gray-700'}>🐛 Bug monster!</span>
           </div>
         </div>
-        <div className="mt-5 pt-4 border-t border-gray-700 space-y-2 text-xs text-gray-400">
+        <div className={`mt-5 pt-4 border-t ${isDarkMode ? 'border-gray-700 text-gray-400' : 'border-gray-300 text-gray-600'} space-y-2 text-xs`}>
           <p className="flex items-center gap-2">
             <span className="text-base">1️⃣</span> Buggy code → Red building + Bug monster
           </p>
@@ -1538,9 +1640,9 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
             <span className="text-base">4️⃣</span> Building turns green! ✨
           </p>
         </div>
-        <div className="mt-4 pt-3 border-t border-gray-700">
-          <p className="text-xs text-gray-500 font-medium mb-2">🏛️ SVKM Campus Landmarks:</p>
-          <div className="grid grid-cols-2 gap-1 text-xs text-gray-400">
+        <div className={`mt-4 pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}>
+          <p className={`text-xs font-medium mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>🏛️ SVKM Campus Landmarks:</p>
+          <div className={`grid grid-cols-2 gap-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             <span>🎓 DJSCE</span>
             <span>🏛️ NMIMS</span>
             <span>📚 Bhagubhai</span>
@@ -1551,21 +1653,21 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
       </div>
 
       {/* Stats Panel */}
-      <div className="absolute bottom-4 right-4 z-20 bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-2xl p-5 shadow-xl">
+      <div className={`absolute bottom-4 right-4 z-20 ${isDarkMode ? 'bg-gray-900/95 border-gray-700' : 'bg-white/95 border-gray-300'} backdrop-blur-md border rounded-2xl p-5 shadow-xl`}>
         <div className="grid grid-cols-3 gap-6 text-center mb-4">
           <div>
-            <div className="text-3xl font-bold text-white">{analysisResults.totalFiles}</div>
-            <div className="text-xs text-gray-400 mt-1">Total Files</div>
+            <div className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{analysisResults.totalFiles}</div>
+            <div className={`text-xs text-gray-400 mt-1 ${!isDarkMode ? 'text-gray-600' : ''}`}>Total Files</div>
           </div>
           <div>
             <div className="text-3xl font-bold text-blue-400">{analysisResults.analyzedFiles}</div>
-            <div className="text-xs text-gray-400 mt-1">Analyzed</div>
+            <div className={`text-xs text-gray-400 mt-1 ${!isDarkMode ? 'text-gray-600' : ''}`}>Analyzed</div>
           </div>
           <div>
             <div className={`text-3xl font-bold ${bugsRemaining > 0 ? 'text-red-400' : 'text-green-400'}`}>
               {bugsRemaining}
             </div>
-            <div className="text-xs text-gray-400 mt-1">Bugs Left</div>
+            <div className={`text-xs text-gray-400 mt-1 ${!isDarkMode ? 'text-gray-600' : ''}`}>Bugs Left</div>
           </div>
         </div>
         
@@ -1609,6 +1711,7 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
         onClose={() => setSelectedFile(null)}
         onHeal={() => selectedFile && handleHealFile(selectedFile.filename)}
         isHealing={!!healingFile}
+        isDarkMode={isDarkMode}
       />
 
       {/* 3D Canvas */}
@@ -1619,7 +1722,7 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
           style={{ width: '100%', height: '100%' }}
           onClick={() => setSelectedFile(null)}
         >
-          <color attach="background" args={['#05050f']} />
+          <color attach="background" args={[isDarkMode ? '#05050f' : '#d4eef5']} />
           <Suspense fallback={null}>
             <Scene 
               files={filesState} 
@@ -1627,6 +1730,7 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
               selectedFile={selectedFile}
               healingFile={healingFile}
               onHealComplete={handleHealComplete}
+              isDarkMode={isDarkMode}
             />
           </Suspense>
         </R3FCanvas>
