@@ -10,7 +10,7 @@ export default function TabsDemo() {
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
             <p>Beautiful design meets powerful functionality</p>
-            <DummyContent imageSrc="/seven.jpeg" />
+            <DummyContent imageSrc="/eight.jpeg" />
           </div>
         ),
       },
@@ -40,7 +40,7 @@ export default function TabsDemo() {
         value: "",
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
-            <p>Automated PRs, production-ready code</p>
+            <p>Earn points for creating automated PRs</p>
             <DummyContent imageSrc="/fourth.jpeg" />
           </div>
         ),

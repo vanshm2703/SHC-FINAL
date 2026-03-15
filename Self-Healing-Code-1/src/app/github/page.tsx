@@ -380,7 +380,7 @@ const GitHubPage = () => {
               <div className="w-full max-w-md">
                 <Button
                   onClick={() => auth?.logOut()}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg"
+                  className="w-full bg-green-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg"
                 >
                   🔄 Logout 
                 </Button>
