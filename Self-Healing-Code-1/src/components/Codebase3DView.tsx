@@ -1691,7 +1691,7 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
               </>
             ) : (
               <>
-                <span>🚀</span> Auto-Heal Next Bug
+                <span>🚀</span> Auto-Heal Bug
               </>
             )}
           </button>
