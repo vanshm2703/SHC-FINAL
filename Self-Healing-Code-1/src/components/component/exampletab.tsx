@@ -10,7 +10,7 @@ export default function TabsDemo() {
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
             <p>Beautiful design meets powerful functionality</p>
-            <DummyContent imageSrc="/eight.jpeg" />
+            <DummyContent imageSrc="/d.jpeg" />
           </div>
         ),
       },
@@ -20,7 +20,7 @@ export default function TabsDemo() {
       content: (
         <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
           <p>Idea to code in seconds. Write it out, we'll build it</p>
-          <DummyContent imageSrc="/first.jpeg" />
+          <DummyContent imageSrc="/a.jpeg" />
         </div>
       ),
     },
@@ -30,7 +30,7 @@ export default function TabsDemo() {
       content: (
         <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
           <p>Write like a pro, code like a prompt perfection</p>
-          <DummyContent imageSrc="/second.jpeg" />
+          <DummyContent imageSrc="/b.jpeg" />
         </div>
       ),
     },
@@ -41,7 +41,7 @@ export default function TabsDemo() {
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
             <p>Earn points for creating automated PRs</p>
-            <DummyContent imageSrc="/fourth.jpeg" />
+            <DummyContent imageSrc="/c.jpeg" />
           </div>
         ),
       },
