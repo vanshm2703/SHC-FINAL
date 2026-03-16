@@ -8,8 +8,7 @@ import {
 } from "framer-motion";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { HomeIcon, LucideGitGraph } from "lucide-react";
-import { IconGraphOff } from "@tabler/icons-react";
+import Image from "next/image";
 
 
 export const FloatingNav = ({
@@ -67,8 +66,14 @@ export const FloatingNav = ({
             "relative dark:text-neutral-50 items-center font-bold pr-5 flex space-x-1 text-neutral-900 dark:hover:text-neutral-300 hover:text-neutral-500"
           )}
         >
-          <span className="block sm:hidden"><HomeIcon /></span>
-          <LucideGitGraph/><span className="hidden sm:block text-lg"> Self Healing Code</span>
+          <Image
+            src="/icon-192x192.png"
+            alt="Self Healing Code Logo"
+            width={32}
+            height={32}
+            className="rounded"
+          />
+          <span className="hidden sm:block text-lg"> Self Healing Code</span>
         </Link>
         {navItems.map((navItem: any, idx: number) => (
           <Link
