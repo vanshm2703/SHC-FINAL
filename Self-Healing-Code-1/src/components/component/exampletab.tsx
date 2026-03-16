@@ -10,7 +10,7 @@ export default function TabsDemo() {
         content: (
           <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
             <p>Beautiful design meets powerful functionality</p>
-            <DummyContent imageSrc="/d.jpeg" />
+            <DummyContent imageSrc="/f1.jpeg" />
           </div>
         ),
       },
@@ -20,7 +20,7 @@ export default function TabsDemo() {
       content: (
         <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
           <p>Idea to code in seconds. Write it out, we'll build it</p>
-          <DummyContent imageSrc="/a.jpeg" />
+          <DummyContent imageSrc="/f2.jpeg" />
         </div>
       ),
     },
@@ -30,7 +30,7 @@ export default function TabsDemo() {
       content: (
         <div className="w-full overflow-hidden relative h-full rounded-2xl p-10 text-xl md:text-4xl font-bold text-white bg-gradient-to-br from-blue-900 to-blue-950">
           <p>Write like a pro, code like a prompt perfection</p>
-          <DummyContent imageSrc="/b.jpeg" />
+          <DummyContent imageSrc="/f3.jpeg" />
         </div>
       ),
     },
