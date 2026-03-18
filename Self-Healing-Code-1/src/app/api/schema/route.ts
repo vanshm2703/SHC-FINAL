@@ -7,7 +7,7 @@ const {
 } = require("@google/generative-ai");
 
 const MODEL_NAME = "gemini-2.5-flash";
-const API_KEY = "AIzaSyDnams8EAFDaQ91pOY49X_GnW8Oxi0DUSI";
+const API_KEY = process.env.GOOGLE_API_KEY;
 const promptMaker = (question: string) => {
     return `**Prompt:** ${question}
     
