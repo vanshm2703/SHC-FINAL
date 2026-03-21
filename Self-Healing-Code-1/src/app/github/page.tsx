@@ -389,7 +389,10 @@ const GitHubPage = () => {
                 <div className="w-full max-w-md p-4 bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-400 rounded-lg">
                   <div className="text-center">
                     <p className="text-sm text-gray-600 mb-1">Your Total Accumulated Score</p>
-                    <p className="text-3xl font-bold text-yellow-600">{Math.round(totalPoints)} pts</p>
+                    <p className="text-3xl font-bold text-yellow-600 flex items-center justify-center gap-2">
+                      <span className="text-yellow-500">★</span>
+                      <span>{Math.round(totalPoints)} Points</span>
+                    </p>
                     {lastMetrics && (
                       <div className="mt-2 flex items-center justify-center gap-2">
                         <span className="text-sm text-gray-500">Last Session:</span>
@@ -553,10 +556,10 @@ const GitHubPage = () => {
                       </div>
 
                       <div className="text-sm" style={{ color: lastMetrics.gradeInfo.color }}>
-                        Raw contribution: {lastMetrics.rawContribution} pts
+                        Raw contribution: {lastMetrics.rawContribution} Points
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        Total Accumulated: {Math.round(totalPoints)} pts
+                        Total Accumulated: <span className="text-yellow-500">★</span> {Math.round(totalPoints)} Points
                       </div>
                     </div>
                   </div>
