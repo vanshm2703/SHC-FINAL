@@ -1244,7 +1244,7 @@ const FileDetailsPanel: React.FC<{
               <div className="text-xs space-y-1 bg-white bg-opacity-20 rounded p-2">
                 <div className="flex justify-between">
                   <span>Base:</span>
-                  <span className="font-mono font-bold">{Math.round((file.rawContribution / 100) * 100)}</span>
+                  <span className="font-mono font-bold">{Math.round(((file.rawContribution ?? 0) / 100) * 100)}</span>
                 </div>
                 {file.metrics?.severityBreakdown?.critical > 0 && (
                   <div className="flex justify-between">
@@ -1266,7 +1266,7 @@ const FileDetailsPanel: React.FC<{
                 )}
               </div>
               <div className="text-[10px] text-gray-500 text-center">
-                Raw: {file.rawContribution} pts
+                Raw: {file.rawContribution ?? 0} pts
               </div>
             </div>
           )}
