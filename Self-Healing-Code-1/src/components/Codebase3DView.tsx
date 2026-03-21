@@ -36,6 +36,10 @@ interface FileWithStatus {
   prCreated?: boolean;
   prUrl?: string;
   pointsEarned?: number;
+  normalizedScore?: number;  // 0-100 score with bonuses
+  grade?: string;            // Letter grade
+  rawContribution?: number;  // Raw contribution points
+  metrics?: any;             // Full metrics object
 }
 
 interface Codebase3DViewProps {
@@ -313,8 +317,18 @@ const Building: React.FC<{
             <R3FHtml position={[0, 3.5, 0]} center>
               <div className="animate-bounce text-center">
                 <div className="text-4xl">🎉</div>
-                <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs px-3 py-1 rounded-full font-bold mt-1 shadow-lg">
-                  +{file.pointsEarned || 0} pts!
+                <div className="space-y-1">
+                  <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg">
+                    Score: +{file.normalizedScore || 0}/100
+                  </div>
+                  {file.grade && (
+                    <div
+                      className="text-white text-[10px] px-2 py-0.5 rounded-full font-bold inline-block shadow-lg"
+                      style={{ backgroundColor: file.metrics?.gradeInfo?.color || '#gray' }}
+                    >
+                      Grade {file.grade}
+                    </div>
+                  )}
                 </div>
               </div>
             </R3FHtml>
@@ -1213,10 +1227,47 @@ const FileDetailsPanel: React.FC<{
           <p className={`font-bold text-lg ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>Palace Built!</p>
           <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Building transformed after healing</p>
           
-          {/* Points earned */}
-          {file.pointsEarned && file.pointsEarned > 0 && (
-            <div className={`mt-4 rounded-lg py-2 px-4 inline-block ${isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-500/30'}`}>
-              <span className={`font-bold text-xl ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>+{file.pointsEarned} pts</span>
+          {/* Points earned with breakdown */}
+          {file.pointsEarned && file.pointsEarned > 0 && file.metrics && (
+            <div className={`mt-4 rounded-lg p-3 space-y-2 ${isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-500/30'}`}>
+              <div className="flex items-center justify-between">
+                <span className={`font-bold text-lg ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                  +{file.normalizedScore}/100
+                </span>
+                <span
+                  className="px-2 py-0.5 rounded text-white text-sm font-bold"
+                  style={{ backgroundColor: file.metrics?.gradeInfo?.color || '#gray' }}
+                >
+                  {file.grade}
+                </span>
+              </div>
+              <div className="text-xs space-y-1 bg-white bg-opacity-20 rounded p-2">
+                <div className="flex justify-between">
+                  <span>Base:</span>
+                  <span className="font-mono font-bold">{Math.round((file.rawContribution / 100) * 100)}</span>
+                </div>
+                {file.metrics?.severityBreakdown?.critical > 0 && (
+                  <div className="flex justify-between">
+                    <span>🔴 Critical Bonus:</span>
+                    <span className="font-mono font-bold text-green-600">+10</span>
+                  </div>
+                )}
+                {file.metrics?.severityBreakdown?.high > 0 && file.metrics?.severityBreakdown?.critical === 0 && (
+                  <div className="flex justify-between">
+                    <span>🟠 High Bonus:</span>
+                    <span className="font-mono font-bold text-green-600">+5</span>
+                  </div>
+                )}
+                {file.metrics?.diversityBonus > 0 && (
+                  <div className="flex justify-between">
+                    <span>🎯 Diversity:</span>
+                    <span className="font-mono font-bold text-green-600">+{file.metrics.diversityBonus}</span>
+                  </div>
+                )}
+              </div>
+              <div className="text-[10px] text-gray-500 text-center">
+                Raw: {file.rawContribution} pts
+              </div>
             </div>
           )}
           
@@ -1331,7 +1382,11 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
       isHealing: false,
       isHealed: false,
       prCreated: false,
-      pointsEarned: 0
+      pointsEarned: 0,
+      normalizedScore: 0,
+      grade: 'F',
+      rawContribution: 0,
+      metrics: null
     }));
 
     // No fake placeholders - only show actual analyzed files from the repo
@@ -1402,29 +1457,37 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
     }
     
     // Mark as healed with PR created and points
-    setFilesState(prev => prev.map(f => 
-      f.filename === healingFile ? { 
-        ...f, 
-        isHealing: false, 
-        isHealed: true, 
+    setFilesState(prev => prev.map(f =>
+      f.filename === healingFile ? {
+        ...f,
+        isHealing: false,
+        isHealed: true,
         prCreated: prCreated,
         prUrl: prUrl,
         pointsEarned: pointsEarned,
-        errors: [], 
-        status: 'green' as const 
+        normalizedScore: metrics.normalizedScore,
+        grade: metrics.grade,
+        rawContribution: metrics.rawContribution,
+        metrics: metrics,
+        errors: [],
+        status: 'green' as const
       } : f
     ));
-    
+
     // Update selected file if it was the one being healed
-    setSelectedFile(prev => 
-      prev?.filename === healingFile ? { 
-        ...prev, 
-        isHealed: true, 
+    setSelectedFile(prev =>
+      prev?.filename === healingFile ? {
+        ...prev,
+        isHealed: true,
         prCreated: prCreated,
         prUrl: prUrl,
         pointsEarned: pointsEarned,
-        errors: [], 
-        status: 'green' as const 
+        normalizedScore: metrics.normalizedScore,
+        grade: metrics.grade,
+        rawContribution: metrics.rawContribution,
+        metrics: metrics,
+        errors: [],
+        status: 'green' as const
       } : prev
     );
 
