@@ -9,7 +9,16 @@ import Link from "next/link"
 import dynamic from "next/dynamic";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { GitHubError, AnalysisResult, AnalysisResults, SEVERITY_DEFINITIONS, calculatePoints } from "@/lib/types";
+import {
+  GitHubError,
+  AnalysisResult,
+  AnalysisResults,
+  SEVERITY_DEFINITIONS,
+  calculatePoints,
+  calculateQualityMetrics,
+  getGradeFromScore,
+  QualityMetrics,
+} from "@/lib/types";
 
 // Dynamically import 3D view to avoid SSR issues
 const Codebase3DView = dynamic(() => import('@/components/Codebase3DView'), { ssr: false });
@@ -18,6 +27,8 @@ const KnowledgeGraph = dynamic(() => import('@/components/KnowledgeGraph'), {
   ssr: false,
   loading: () => null,
 });
+// Dynamically import GradingDisplay
+const GradingDisplay = dynamic(() => import('@/components/GradingDisplay'), { ssr: false });
 
 interface GitHubFile {
   type: string;
@@ -46,6 +57,7 @@ const GitHubPage = () => {
   const [prResult, setPrResult] = useState<{ prUrl: string; message: string } | null>(null);
   const [pointsEarned, setPointsEarned] = useState<number>(0);
   const [totalPoints, setTotalPoints] = useState<number>(0);
+  const [lastMetrics, setLastMetrics] = useState<QualityMetrics | null>(null);
 
   // Fetch user's total points when they login
   useEffect(() => {
@@ -55,7 +67,7 @@ const GitHubPage = () => {
           const response = await fetch(`/api/save-points?userId=${user.uid}`);
           if (response.ok) {
             const data = await response.json();
-            setTotalPoints(data.totalPoints || 0);
+            setTotalPoints(data.totalScore || 0);
           }
         } catch (err) {
           console.error('Failed to fetch user points:', err);
@@ -254,16 +266,13 @@ const GitHubPage = () => {
         message: data.message
       });
 
-      // Calculate and save points based on bug severity
+      // Calculate quality metrics using realistic algorithm
       const allErrors = analysisResults.results.flatMap(f => f.errors);
-      const earned = calculatePoints(allErrors);
-      const severityBreakdown = allErrors.reduce((acc, err) => {
-        const sev = err.severity || 'medium';
-        acc[sev] = (acc[sev] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      const metrics = calculateQualityMetrics(allErrors);
+      const earned = metrics.normalizedScore;  // Use normalized score (0-100)
 
       setPointsEarned(earned);
+      setLastMetrics(metrics);
 
       if (user) {
         try {
@@ -273,7 +282,9 @@ const GitHubPage = () => {
             body: JSON.stringify({
               userId: user.uid,
               userEmail: user.email,
-              points: earned,
+              points: metrics.rawContribution,  // Raw points for lifetime tracking
+              score: metrics.normalizedScore,  // 0-100 score (normalized)
+              grade: metrics.grade,
               prUrl: data.prUrl,
               prNumber: data.prNumber,
               repoName: analysisResults.repoName,
@@ -283,17 +294,24 @@ const GitHubPage = () => {
                 severity: e.severity,
                 message: e.message,
               })),
-              severityBreakdown,
+              severityBreakdown: metrics.severityBreakdown,
+              qualityMetrics: metrics,
             }),
           });
 
           if (saveResponse.ok) {
-            // Update total points after successful save
-            setTotalPoints(prevPoints => prevPoints + earned);
+            // Update total score after successful save
+            setTotalPoints(prevScore => prevScore + metrics.normalizedScore);
+            console.log('Score saved successfully:', metrics.normalizedScore, 'Grade:', metrics.grade, 'Raw Points:', metrics.rawContribution);
+          } else {
+            const errorData = await saveResponse.json();
+            console.error('Failed to save score:', errorData);
           }
         } catch (pointsError) {
-          console.error('Failed to save points:', pointsError);
+          console.error('Failed to save score:', pointsError);
         }
+      } else {
+        console.warn('User not logged in, score not saved');
       }
 
     } catch (err: any) {
@@ -370,8 +388,19 @@ const GitHubPage = () => {
               {totalPoints > 0 && (
                 <div className="w-full max-w-md p-4 bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-400 rounded-lg">
                   <div className="text-center">
-                    <p className="text-sm text-gray-600 mb-1">Your Total Points</p>
-                    <p className="text-3xl font-bold text-yellow-600">⭐ {totalPoints.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600 mb-1">Your Total Accumulated Score</p>
+                    <p className="text-3xl font-bold text-yellow-600">{Math.round(totalPoints)} pts</p>
+                    {lastMetrics && (
+                      <div className="mt-2 flex items-center justify-center gap-2">
+                        <span className="text-sm text-gray-500">Last Session:</span>
+                        <span
+                          className="px-2 py-0.5 rounded-full text-white text-sm font-bold"
+                          style={{ backgroundColor: lastMetrics.gradeInfo.color }}
+                        >
+                          {lastMetrics.normalizedScore}/100 ({lastMetrics.grade})
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -461,15 +490,74 @@ const GitHubPage = () => {
                   <span className="font-semibold">PR Created Successfully!</span>
                 </div>
                 <p className="mb-3">{prResult.message}</p>
-                {pointsEarned > 0 && (
-                  <div className="mb-3 p-3 bg-yellow-100 border border-yellow-400 rounded-lg">
-                    <div className="text-center mb-2">
-                      <span className="text-xl font-bold text-yellow-700">
-                        +{pointsEarned.toLocaleString()} points earned! 🎉
-                      </span>
-                    </div>
-                    <div className="text-center text-sm text-yellow-600">
-                      <p>Total Points: <strong className="text-lg text-yellow-700">{totalPoints.toLocaleString()}</strong></p>
+                {lastMetrics && (
+                  <div
+                    className="mb-3 p-4 rounded-lg"
+                    style={{ backgroundColor: lastMetrics.gradeInfo.bgColor }}
+                  >
+                    <div className="text-center space-y-3">
+                      {/* Grade Display */}
+                      <div className="flex items-center justify-center gap-3">
+                        <span
+                          className="text-4xl font-black"
+                          style={{ color: lastMetrics.gradeInfo.color }}
+                        >
+                          {lastMetrics.grade}
+                        </span>
+                        <div>
+                          <div
+                            className="text-2xl font-bold"
+                            style={{ color: lastMetrics.gradeInfo.color }}
+                          >
+                            {lastMetrics.normalizedScore}/100
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {lastMetrics.gradeInfo.label}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Score Breakdown */}
+                      <div className="text-xs bg-white bg-opacity-50 rounded p-2 space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Base Score:</span>
+                          <span className="font-mono font-bold">{Math.round((lastMetrics.rawContribution / 100) * 100)}</span>
+                        </div>
+                        {lastMetrics.severityBreakdown.critical > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">🔴 Critical Bonus:</span>
+                            <span className="font-mono font-bold text-green-600">+10</span>
+                          </div>
+                        )}
+                        {lastMetrics.severityBreakdown.high > 0 && lastMetrics.severityBreakdown.critical === 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">🟠 High Bonus:</span>
+                            <span className="font-mono font-bold text-green-600">+5</span>
+                          </div>
+                        )}
+                        {lastMetrics.diversityBonus > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">🎯 Diversity Bonus:</span>
+                            <span className="font-mono font-bold text-green-600">+{lastMetrics.diversityBonus}</span>
+                          </div>
+                        )}
+                        <div className="border-t border-gray-300 pt-1 flex justify-between">
+                          <span className="font-bold text-gray-700">Final Score:</span>
+                          <span
+                            className="font-mono font-bold"
+                            style={{ color: lastMetrics.gradeInfo.color }}
+                          >
+                            {lastMetrics.normalizedScore}/100
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-sm" style={{ color: lastMetrics.gradeInfo.color }}>
+                        Raw contribution: {lastMetrics.rawContribution} pts
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Total Accumulated: {Math.round(totalPoints)} pts
+                      </div>
                     </div>
                   </div>
                 )}
@@ -502,14 +590,23 @@ const GitHubPage = () => {
                   <p>🔍 Analyzed Files: {analysisResults.analyzedFiles}</p>
                   <p>⚠️ Files with Issues: {analysisResults.filesWithErrors}</p>
                 </div>
-                
+
                 {analysisResults.results.length === 0 ? (
                   <p className="text-green-700 font-semibold">✅ No major issues found!</p>
                 ) : (
                   <>
+                    {/* Grading Display with Visual Bars */}
+                    <div className="mb-4">
+                      <GradingDisplay
+                        errors={analysisResults.results.flatMap(f => f.errors)}
+                        showGradingScale={true}
+                        showFormula={true}
+                      />
+                    </div>
+
                     <div className="mb-4">
                       <div className="flex gap-3">
-                        <Button 
+                        <Button
                           onClick={createAutoFixPR}
                           disabled={!githubToken.trim() || isCreatingPR || analysisResults.results.length === 0}
                           className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -609,6 +706,49 @@ const GitHubPage = () => {
             <h4 className="text-xl font-semibold text-black mb-2">Auto Healing</h4>
             <p className="text-black">Automatic code fixes and improvements applied intelligently.</p>
           </div>
+        </div>
+      </section>
+
+      {/* Grading Standards Section */}
+      <section className="w-full max-w-7xl px-8 py-12 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg mx-auto">
+        <div className="text-center">
+          <h3 className="text-2xl font-bold text-gray-900 mb-6">Grading Standards</h3>
+          <p className="text-gray-700 max-w-3xl mx-auto mb-8">
+            Our grading system is built on industry-standard software quality assessment frameworks:
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* CVSS */}
+            <div className="p-4 bg-white rounded-lg border border-red-200 shadow-sm">
+              <div className="text-2xl mb-2">🔴</div>
+              <h4 className="font-bold text-gray-900 mb-1">CVSS 3.1</h4>
+              <p className="text-sm text-gray-600">
+                Common Vulnerability Scoring System. Severity scoring for security risks and critical bugs.
+              </p>
+            </div>
+
+            {/* ISO/IEC 25010 */}
+            <div className="p-4 bg-white rounded-lg border border-blue-200 shadow-sm">
+              <div className="text-2xl mb-2">📏</div>
+              <h4 className="font-bold text-gray-900 mb-1">ISO/IEC 25010</h4>
+              <p className="text-sm text-gray-600">
+                Software Product Quality Model. Evaluates reliability, maintainability, and performance.
+              </p>
+            </div>
+
+            {/* OWASP */}
+            <div className="p-4 bg-white rounded-lg border border-orange-200 shadow-sm">
+              <div className="text-2xl mb-2">🛡️</div>
+              <h4 className="font-bold text-gray-900 mb-1">OWASP Standards</h4>
+              <p className="text-sm text-gray-600">
+                Risk assessment and secure coding practices. Ensures code security best practices.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500 mt-8">
+            Grading scaled to 0-100 academic standard with bonuses for code quality diversity and critical fixes
+          </p>
         </div>
       </section>
     </main>

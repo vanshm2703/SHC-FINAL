@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
+import { calculateQualityMetrics, getGradeFromScore } from '@/lib/types';
 
 // @ts-ignore
 const R3FCanvas = Canvas as any;
@@ -15,6 +16,7 @@ const R3FOrbitControls = OrbitControls as any;
 // Type definitions
 interface GitHubError {
   type: 'error' | 'warning';
+  severity?: 'critical' | 'high' | 'medium' | 'low';
   message: string;
   line: number;
   suggestion?: string;
@@ -312,7 +314,7 @@ const Building: React.FC<{
               <div className="animate-bounce text-center">
                 <div className="text-4xl">🎉</div>
                 <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs px-3 py-1 rounded-full font-bold mt-1 shadow-lg">
-                  +{file.pointsEarned || 100} pts!
+                  +{file.pointsEarned || 0} pts!
                 </div>
               </div>
             </R3FHtml>
@@ -1351,13 +1353,13 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
   // Handle heal completion - creates actual PR
   const handleHealComplete = async () => {
     if (!healingFile) return;
-    
-    // Calculate points based on errors fixed (100 per error + 50 bonus for critical)
+
+    // Calculate points using realistic quality metrics
     const healedFileData = filesState.find(f => f.filename === healingFile);
-    const errorCount = healedFileData?.errors.length || 0;
-    const hasCritical = healedFileData?.errors.some(e => e.type === 'error') || false;
-    const pointsEarned = (errorCount * 100) + (hasCritical ? 50 : 0);
-    
+    const errorsFixed = healedFileData?.errors || [];
+    const metrics = calculateQualityMetrics(errorsFixed as any);
+    const pointsEarned = metrics.rawContribution;  // Use raw contribution for cumulative points
+
     let prCreated = false;
     let prUrl: string | undefined = undefined;
     
@@ -1427,9 +1429,9 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
     );
 
     // Update total points and PR count - notify parent
-    setUserTotalPoints(prev => prev + pointsEarned);
+    setUserTotalPoints(prev => prev + metrics.normalizedScore);
     if (onPointsEarned) {
-      onPointsEarned(pointsEarned);
+      onPointsEarned(metrics.normalizedScore);
     }
     if (prCreated) {
       setPrsCreated(prev => prev + 1);
@@ -1444,17 +1446,20 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
           body: JSON.stringify({
             userId,
             userEmail: userEmail || '',
-            points: pointsEarned,
+            points: metrics.rawContribution,  // Raw contribution points
+            score: metrics.normalizedScore,   // Normalized score 0-100
+            grade: metrics.grade,             // Letter grade
             prUrl: prUrl,
             prNumber: 0,
             repoName: analysisResults.repoName || '',
             branchName: branchName || 'main',
-            bugsFixed: [{
+            bugsFixed: errorsFixed.map(e => ({
               filename: healingFile,
-              severity: 'mixed',
-              message: 'Fixed via 3D healing interface'
-            }],
-            severityBreakdown: {},
+              severity: e.severity || 'low',
+              message: e.message,
+            })),
+            severityBreakdown: metrics.severityBreakdown,
+            qualityMetrics: metrics,
           }),
         });
       } catch (err) {
