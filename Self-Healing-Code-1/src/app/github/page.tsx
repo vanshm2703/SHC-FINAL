@@ -33,7 +33,8 @@ const GradingDisplay = dynamic(() => import('@/components/GradingDisplay'), { ss
 interface GitHubFile {
   type: string;
   name: string;
-  download_url: string;
+  path: string;
+  download_url: string | null;
 }
 
 const GitHubPage = () => {
@@ -90,14 +91,46 @@ const GitHubPage = () => {
     return null;
   };
 
-  // Fetch repository contents from GitHub API
-  const fetchRepoContents = async (owner: string, repo: string, branch = 'main'): Promise<GitHubFile[]> => {
+  // Recursively fetch repository contents so nested folders are analyzed.
+  const fetchRepoContents = async (
+    owner: string,
+    repo: string,
+    branch = 'main',
+    currentPath = ''
+  ): Promise<GitHubFile[]> => {
     try {
-      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents?ref=${branch}`);
+      const encodedPath = currentPath
+        .split('/')
+        .filter(Boolean)
+        .map(segment => encodeURIComponent(segment))
+        .join('/');
+
+      const apiPath = encodedPath ? `/${encodedPath}` : '';
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents${apiPath}?ref=${encodeURIComponent(branch)}`
+      );
+
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status}`);
       }
-      return await response.json();
+
+      const contents = await response.json();
+      if (!Array.isArray(contents)) {
+        return [];
+      }
+
+      const files: GitHubFile[] = [];
+
+      for (const item of contents) {
+        if (item.type === 'file') {
+          files.push(item as GitHubFile);
+        } else if (item.type === 'dir') {
+          const nestedFiles = await fetchRepoContents(owner, repo, branch, item.path);
+          files.push(...nestedFiles);
+        }
+      }
+
+      return files;
     } catch (err: any) {
       throw new Error(`Failed to fetch repository: ${err.message}`);
     }
@@ -187,10 +220,10 @@ const GitHubPage = () => {
       const branch = branchName.trim() || 'main';
       const contents = await fetchRepoContents(parsedUrl.owner, parsedUrl.repo, branch);
       
-      // Filter code files
+      // Filter code files from the full recursive file list
       const codeFiles = contents.filter((item: GitHubFile) => 
         item.type === 'file' && 
-        /\.(js|jsx|ts|tsx|py|java|cpp|c|cs|php)$/.test(item.name)
+        /\.(js|jsx|ts|tsx|py|java|cpp|c|cs|php)$/i.test(item.path)
       );
 
       const analysisResults = [];
@@ -198,12 +231,16 @@ const GitHubPage = () => {
       const filesToAnalyze = codeFiles.slice(0, 5);
       
       for (const file of filesToAnalyze) {
+        if (!file.download_url) {
+          continue;
+        }
+
         const content = await fetchFileContent(file.download_url);
         if (content && content.length < 5000) { // Limit file size
-          const analysis = await analyzeCodeWithGroq(file.name, content);
+          const analysis = await analyzeCodeWithGroq(file.path, content);
           if (analysis.errors && analysis.errors.length > 0) {
             analysisResults.push({
-              filename: file.name,
+              filename: file.path,
               errors: analysis.errors
             });
           }
