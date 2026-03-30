@@ -29,6 +29,8 @@ const KnowledgeGraph = dynamic(() => import('@/components/KnowledgeGraph'), {
 });
 // Dynamically import GradingDisplay
 const GradingDisplay = dynamic(() => import('@/components/GradingDisplay'), { ssr: false });
+// Dynamically import Voice Chat Assistant
+const VoiceChatAssistant = dynamic(() => import('@/components/VoiceChatAssistant'), { ssr: false });
 
 interface GitHubFile {
   type: string;
@@ -59,6 +61,19 @@ const GitHubPage = () => {
   const [pointsEarned, setPointsEarned] = useState<number>(0);
   const [totalPoints, setTotalPoints] = useState<number>(0);
   const [lastMetrics, setLastMetrics] = useState<QualityMetrics | null>(null);
+  const [highlightedFile, setHighlightedFile] = useState<string | null>(null);
+
+  // Use refs to ensure callbacks always have latest values
+  const repoUrlRef = React.useRef(repoUrl);
+  const branchNameRef = React.useRef(branchName);
+  const githubTokenRef = React.useRef(githubToken);
+  const analysisResultsRef = React.useRef(analysisResults);
+
+  // Keep refs in sync - this runs synchronously during render
+  repoUrlRef.current = repoUrl;
+  branchNameRef.current = branchName;
+  githubTokenRef.current = githubToken;
+  analysisResultsRef.current = analysisResults;
 
   // Fetch user's total points when they login
   useEffect(() => {
@@ -201,12 +216,21 @@ const GitHubPage = () => {
 
   // Main analysis function
   const analyzeRepository = async () => {
-    if (!repoUrl.trim()) {
+    // Use refs to get latest values
+    const currentRepoUrl = repoUrlRef.current;
+    const currentBranchName = branchNameRef.current;
+    
+    console.log('🔍 analyzeRepository called with:', { 
+      repoUrl: currentRepoUrl, 
+      branch: currentBranchName 
+    });
+    
+    if (!currentRepoUrl.trim()) {
       setError('Please enter a repository URL');
       return;
     }
 
-    const parsedUrl = parseGitHubUrl(repoUrl);
+    const parsedUrl = parseGitHubUrl(currentRepoUrl);
     if (!parsedUrl) {
       setError('Invalid GitHub URL format');
       return;
@@ -217,7 +241,7 @@ const GitHubPage = () => {
     setAnalysisResults(null);
 
     try {
-      const branch = branchName.trim() || 'main';
+      const branch = currentBranchName.trim() || 'main';
       const contents = await fetchRepoContents(parsedUrl.owner, parsedUrl.repo, branch);
       
       // Filter code files from the full recursive file list
@@ -264,12 +288,26 @@ const GitHubPage = () => {
 
   // Create Pull Request with fixes
   const createAutoFixPR = async () => {
-    if (!analysisResults || !githubToken.trim()) {
+    // Use refs to get latest values
+    const currentRepoUrl = repoUrlRef.current;
+    const currentBranchName = branchNameRef.current;
+    const currentGithubToken = githubTokenRef.current;
+    const currentAnalysisResults = analysisResultsRef.current;
+    
+    console.log('🚀 createAutoFixPR called with:', {
+      repoUrl: currentRepoUrl,
+      branch: currentBranchName,
+      hasToken: !!currentGithubToken,
+      tokenLength: currentGithubToken?.length || 0,
+      hasAnalysis: !!currentAnalysisResults
+    });
+    
+    if (!currentAnalysisResults || !currentGithubToken.trim()) {
       setError('GitHub token is required to create pull requests');
       return;
     }
 
-    if (analysisResults.results.length === 0) {
+    if (currentAnalysisResults.results.length === 0) {
       setError('No issues found to fix');
       return;
     }
@@ -285,10 +323,10 @@ const GitHubPage = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          repoUrl,
-          branchName: branchName.trim() || 'main',
-          githubToken,
-          analysisResults: analysisResults.results
+          repoUrl: currentRepoUrl,
+          branchName: currentBranchName.trim() || 'main',
+          githubToken: currentGithubToken,
+          analysisResults: currentAnalysisResults.results
         }),
       });
 
@@ -304,7 +342,7 @@ const GitHubPage = () => {
       });
 
       // Calculate quality metrics using realistic algorithm
-      const allErrors = analysisResults.results.flatMap(f => f.errors);
+      const allErrors = currentAnalysisResults.results.flatMap(f => f.errors);
       const metrics = calculateQualityMetrics(allErrors);
       const earned = metrics.normalizedScore;  // Use normalized score (0-100)
 
@@ -324,8 +362,8 @@ const GitHubPage = () => {
               grade: metrics.grade,
               prUrl: data.prUrl,
               prNumber: data.prNumber,
-              repoName: analysisResults.repoName,
-              branchName: branchName.trim() || 'main',
+              repoName: currentAnalysisResults.repoName,
+              branchName: currentBranchName.trim() || 'main',
               bugsFixed: allErrors.map(e => ({
                 filename: 'various',
                 severity: e.severity,
@@ -407,8 +445,30 @@ const GitHubPage = () => {
               userEmail={user?.email || ''}
               totalPoints={totalPoints}
               onPointsEarned={(points) => setTotalPoints(prev => prev + points)}
+              highlightedFile={highlightedFile}
+              onFileHighlightClear={() => setHighlightedFile(null)}
             />
           )}
+
+          {/* Voice + Chat Assistant */}
+          <VoiceChatAssistant
+            repoUrl={repoUrl}
+            branchName={branchName}
+            githubToken={githubToken}
+            analysisResults={analysisResults}
+            onAnalyzeRequested={analyzeRepository}
+            onCreatePRRequested={createAutoFixPR}
+            onShowKnowledgeGraph={() => setShowKnowledgeGraph(true)}
+            onShow3DView={() => setShow3DView(true)}
+            onHighlightFile={(filename) => {
+              setShow3DView(true);
+              setHighlightedFile(filename);
+            }}
+            userId={user?.uid}
+            userEmail={user?.email || ''}
+            totalPoints={totalPoints}
+            onPointsEarned={(points) => setTotalPoints(prev => prev + points)}
+          />
 
         <main className='flex min-h-screen h-fit flex-col items-center justify-center relative'>
           <header id="home" className="flex flex-col-reverse md:flex-row w-full min-h-screen max-w-7xl items-center justify-center p-8 relative overflow-x-hidden">
@@ -425,7 +485,7 @@ const GitHubPage = () => {
               {totalPoints > 0 && (
                 <div className="w-full max-w-md p-4 bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-400 rounded-lg">
                   <div className="text-center">
-                    <p className="text-sm text-gray-600 mb-1">Your Total Accumulated Score</p>
+                    <p className="text-sm text-gray-600 mb-1">Your Total Points</p>
                     <p className="text-3xl font-bold text-yellow-600 flex items-center justify-center gap-2">
                       <span className="text-yellow-500">★</span>
                       <span>{Math.round(totalPoints)} Points</span>
@@ -706,10 +766,7 @@ const GitHubPage = () => {
         </div>
 
         <div className='w-full h-fit md:h-full md:w-3/5 flex items-center justify-center relative -z-10'>
-          <Spline 
-            className="w-full flex scale-[.25] sm:scale-[.35] lg:scale-[.5] items-center justify-center md:justify-start" 
-            scene='https://prod.spline.design/pvM5sSiYV2ivWraz/scene.splinecode'
-          />
+           <Spline className="w-full flex scale-[.6] sm:scale-[.6] lg:scale-[1] items-center justify-center md:justify-start" scene='https://prod.spline.design/wvUU8VrDWfRPs4Kc/scene.splinecode'/>
         </div>
       </header>
 

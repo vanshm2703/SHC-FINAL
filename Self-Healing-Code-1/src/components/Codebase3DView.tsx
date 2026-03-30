@@ -58,6 +58,8 @@ interface Codebase3DViewProps {
   userEmail?: string;
   totalPoints?: number;
   onPointsEarned?: (points: number) => void;
+  highlightedFile?: string | null;
+  onFileHighlightClear?: () => void;
 }
 
 // Bug Monster Component - appears on buggy buildings
@@ -207,11 +209,12 @@ const Building: React.FC<{
   file: FileWithStatus;
   onClick: (file: FileWithStatus) => void;
   isSelected: boolean;
-}> = ({ position, file, onClick, isSelected }) => {
+  isHighlighted?: boolean;
+}> = ({ position, file, onClick, isSelected, isHighlighted }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  
+
   // Show celebration when healed
   useEffect(() => {
     if (file.isHealed && file.prCreated) {
@@ -220,7 +223,7 @@ const Building: React.FC<{
       return () => clearTimeout(timer);
     }
   }, [file.isHealed, file.prCreated]);
-  
+
   const getColor = () => {
     if (file.isHealed) return '#FFD700'; // Gold for palace
     if (file.errors.length === 0) return '#22c55e';
@@ -231,16 +234,24 @@ const Building: React.FC<{
 
   useFrame((state) => {
     if (meshRef.current) {
-      // Scale animation on hover
-      const targetScale = hovered || isSelected ? 1.08 : 1;
+      // Scale animation on hover or highlight
+      const targetScale = hovered || isSelected || isHighlighted ? 1.15 : 1;
       meshRef.current.scale.x = THREE.MathUtils.lerp(meshRef.current.scale.x, targetScale, 0.1);
       meshRef.current.scale.z = THREE.MathUtils.lerp(meshRef.current.scale.z, targetScale, 0.1);
-      
+
       // Healing pulse effect
       if (file.isHealing) {
         const pulse = Math.sin(state.clock.elapsedTime * 8) * 0.05 + 1;
         meshRef.current.scale.x = pulse;
         meshRef.current.scale.z = pulse;
+      }
+
+      // Highlight pulse effect - pulsing glow for highlighted file
+      if (isHighlighted && !file.isHealing) {
+        const pulse = Math.sin(state.clock.elapsedTime * 4) * 0.08 + 1.1;
+        meshRef.current.scale.x = pulse;
+        meshRef.current.scale.z = pulse;
+        meshRef.current.scale.y = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.03;
       }
     }
   });
@@ -395,14 +406,19 @@ const Building: React.FC<{
         }}
       >
         <boxGeometry args={[0.9, height, 0.9]} />
-        <meshStandardMaterial 
-          color={currentColor}
-          emissive={currentColor}
-          emissiveIntensity={isSelected ? 0.5 : hasBugs ? 0.3 : 0.15}
-          metalness={0.2}
-          roughness={0.6}
+        <meshStandardMaterial
+          color={isHighlighted ? '#00ffff' : currentColor}
+          emissive={isHighlighted ? '#00ffff' : currentColor}
+          emissiveIntensity={isHighlighted ? 0.8 : isSelected ? 0.5 : hasBugs ? 0.3 : 0.15}
+          metalness={isHighlighted ? 0.4 : 0.2}
+          roughness={isHighlighted ? 0.3 : 0.6}
         />
       </mesh>
+
+      {/* Highlight spotlight */}
+      {isHighlighted && (
+        <pointLight position={[0, height + 2, 0]} intensity={2} distance={6} color="#00ffff" />
+      )}
 
       {/* Windows - front and back */}
       {Array.from({ length: Math.floor(height / 0.5) }).map((_, i) => (
@@ -957,7 +973,8 @@ const Scene: React.FC<{
   healingFile: string | null;
   onHealComplete: () => void;
   isDarkMode: boolean;
-}> = ({ files, onSelectFile, selectedFile, healingFile, onHealComplete, isDarkMode }) => {
+  highlightedFile?: string | null;
+}> = ({ files, onSelectFile, selectedFile, healingFile, onHealComplete, isDarkMode, highlightedFile }) => {
   const gridSize = Math.ceil(Math.sqrt(Math.max(files.length, 1)));
   const spacing = 2.8;
   
@@ -1050,6 +1067,7 @@ const Scene: React.FC<{
             file={file}
             onClick={onSelectFile}
             isSelected={selectedFile?.filename === file.filename}
+            isHighlighted={highlightedFile ? file.filename.includes(highlightedFile) || highlightedFile.includes(file.filename) : false}
           />
         );
       })}
@@ -1358,7 +1376,7 @@ const FileDetailsPanel: React.FC<{
 };
 
 // Main Component
-const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClose, repoUrl, branchName, githubToken, totalPoints = 0, onPointsEarned, userId, userEmail }) => {
+const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClose, repoUrl, branchName, githubToken, totalPoints = 0, onPointsEarned, userId, userEmail, highlightedFile, onFileHighlightClear }) => {
   const [selectedFile, setSelectedFile] = useState<FileWithStatus | null>(null);
   const [healingFile, setHealingFile] = useState<string | null>(null);
   const [filesState, setFilesState] = useState<FileWithStatus[]>([]);
@@ -1792,13 +1810,14 @@ const Codebase3DView: React.FC<Codebase3DViewProps> = ({ analysisResults, onClos
         >
           <color attach="background" args={[isDarkMode ? '#05050f' : '#d4eef5']} />
           <Suspense fallback={null}>
-            <Scene 
-              files={filesState} 
+            <Scene
+              files={filesState}
               onSelectFile={setSelectedFile}
               selectedFile={selectedFile}
               healingFile={healingFile}
               onHealComplete={handleHealComplete}
               isDarkMode={isDarkMode}
+              highlightedFile={highlightedFile}
             />
           </Suspense>
         </R3FCanvas>

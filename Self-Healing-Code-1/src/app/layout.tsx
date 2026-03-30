@@ -43,7 +43,7 @@ export default function RootLayout({
   return (
 
 
-    <html lang="en" className="[background:radial-gradient(70%_70%_at_50%_10%,#fff_40%,#2436ffb1_100%)]">
+      <html lang="en" className="[background:radial-gradient(70%_70%_at_50%_10%,#E0F6FF_15%,#ffffff_100%)]">
       <body className={inter.className}>
         <FloatingNav navItems={navItems} />
         <Toaster />
