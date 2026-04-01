@@ -766,7 +766,7 @@ const GitHubPage = () => {
         </div>
 
         <div className='w-full h-fit md:h-full md:w-3/5 flex items-center justify-center relative -z-10'>
-           <Spline className="w-full flex scale-[.6] sm:scale-[.6] lg:scale-[1] items-center justify-center md:justify-start" scene='https://prod.spline.design/wvUU8VrDWfRPs4Kc/scene.splinecode'/>
+           <Spline className="w-full flex scale-[.25] sm:scale-[.35] lg:scale-[.5] items-center justify-center md:justify-start" scene='https://prod.spline.design/pvM5sSiYV2ivWraz/scene.splinecode'/>
         </div>
       </header>
 
