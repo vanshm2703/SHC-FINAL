@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "driver.js/dist/driver.css";
 import { Toaster } from "react-hot-toast";
 import { FloatingNav } from "@/components/ui/floating-navbar";
 import { AuthContextProvider } from "@/context/AuthContext";
