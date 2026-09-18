@@ -1,6 +1,8 @@
 
-https://github.com/user-attachments/assets/48da6484-e20a-488b-bcdb-7fc8f053501f
-Uploading VIDEO-2026-09-18-10-35-02.mp4…
+
+https://github.com/user-attachments/assets/9d353654-778a-4464-b9e5-6c91b7ffcdd1
+
+
 # 🛠️ Self-Healing Code
 
 An **AI-powered developer platform** designed to automatically detect, analyze, and remediate software issues. The platform combines automated test generation, GitHub repository analysis, AI-assisted code remediation, interactive 3D visualization, knowledge graphs, voice commands, and developer gamification into a unified development workflow.
